@@ -1,0 +1,21 @@
+# Node
+node_modules/
+npm-debug.log*
+
+# TypeScript build output
+*.tsbuildinfo
+dist/
+
+# .NET build output
+bin/
+obj/
+
+# Site build output (prerendered site, per PLAN.md)
+docs/
+
+# Editor / OS
+.vs/
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
