@@ -1,0 +1,40 @@
+<!--
+  Canary default shell template. Stamped onto every generated page (see
+  PLAN.md's "Chrome is unconditionally re-stamped every build" decision).
+  Placeholder contract is documented in Canary.Core.Build.PageBuilder, not
+  here -- deliberately: writing the literal placeholder syntax in this
+  comment would make the build's own string-replace match it too.
+
+  Nav stays populated client-side from /content/manifest.json (loadNav(), see
+  PLAN.md) -- this template doesn't render nav markup itself.
+-->
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{title}}</title>
+  <link rel="stylesheet" href="/css/framework.css">
+  <link rel="stylesheet" href="/css/theme.css">
+  {{checksum}}
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-header-top">
+      <a class="site-title" href="/">{{siteName}}</a>
+    </div>
+    <nav id="site-nav" class="site-nav">
+      <!-- populated client-side from /content/manifest.json via loadNav() -->
+    </nav>
+  </header>
+
+  <main id="app">{{content}}</main>
+
+  <footer class="site-footer">
+    <span>Built with Canary.</span>
+  </footer>
+
+  <script type="module" src="/js/main.js"></script>
+  {{widgetScripts}}
+</body>
+</html>

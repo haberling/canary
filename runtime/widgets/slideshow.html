@@ -1,0 +1,50 @@
+<!--
+  Standard widget contract (see PLAN.md's widget-controversy notes): a plain
+  Mustache-syntax HTML template, filled from the fence block's YAML body.
+  No code -- this template only knows how to lay out slides; slideshow.js
+  (shared, referenced once per page) decides at runtime whether there's
+  enough slides to bother with nav/dots/autoplay at all.
+
+  A site-root-relative "src:" (matching how markdown-authored images are
+  written elsewhere, e.g. "content/games/images/x.png") needs the explicit
+  "!url" tag shown below to get rewritten to a root-relative path -- see
+  Canary.Core.Templating.YamlParser/UrlResolver. Deliberately explicit, not
+  automatic -- see PLAN.md's widget-controversy notes. A plain "src: ..."
+  with no tag is left exactly as written (fine for an already-absolute
+  https:// URL, broken for a relative one on any page that isn't the site
+  root).
+-->
+<!--clipboard
+```slideshow
+title: Optional Title
+slides:
+  - src: "https://example.com/shot1.png"
+    caption: "Optional caption"
+  - src: !url "content/games/images/shot2.png"
+```
+-->
+
+<div class="slideshow-widget" data-widget="slideshow" data-index="0" tabindex="0">
+  <div class="slideshow-header">
+    {{#title}}<h3>{{title}}</h3>{{/title}}
+    <button type="button" class="slideshow-toggle" aria-label="Pause slideshow">⏸</button>
+  </div>
+  <div class="slideshow-viewport">
+    <div class="slideshow-track">
+      {{#slides}}
+      <figure class="slideshow-slide" aria-roledescription="slide">
+        <img src="{{src}}" alt="{{caption}}" loading="lazy">
+        {{#caption}}<figcaption class="slideshow-caption">{{caption}}</figcaption>{{/caption}}
+      </figure>
+      {{/slides}}
+    </div>
+    <button type="button" class="slideshow-nav slideshow-prev" aria-label="Previous slide">&#10094;</button>
+    <button type="button" class="slideshow-nav slideshow-next" aria-label="Next slide">&#10095;</button>
+  </div>
+  <div class="slideshow-footer">
+    <div class="slideshow-dots">
+      {{#slides}}<button type="button" class="slideshow-dot"></button>{{/slides}}
+    </div>
+    <span class="slideshow-counter"></span>
+  </div>
+</div>

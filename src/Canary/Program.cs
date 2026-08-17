@@ -1,4 +1,7 @@
+using Canary.Core.Build;
 using Canary.Core.Config;
+using Canary.Core.Serve;
+using Canary.Core.Widgets;
 
 namespace Canary;
 
@@ -19,6 +22,17 @@ class Program
         {
             case "build":
                 return RunBuild(configPath);
+            case "serve":
+                return RunServe(configPath, GetOption(args, "--port"));
+            case "widgets":
+                return RunWidgetsList(configPath);
+            case "widget":
+                if (args.Length < 2)
+                {
+                    Console.Error.WriteLine("Usage: canary widget <name> [--config <path>]");
+                    return 1;
+                }
+                return RunWidgetShow(configPath, args[1]);
             default:
                 Console.Error.WriteLine($"Unknown command: {command}");
                 PrintUsage();
@@ -26,8 +40,6 @@ class Program
         }
     }
 
-    // Phase 0: proves the config loader end-to-end. The real build pipeline
-    // (manifest generation, prerendering, incremental writes) is Phase 1.
     static int RunBuild(string configPath)
     {
         CanaryConfig config;
@@ -41,15 +53,143 @@ class Program
             return 1;
         }
 
-        Console.WriteLine($"Loaded config: {configPath}");
-        Console.WriteLine($"  site.name     = {config.Site.Name}");
-        Console.WriteLine($"  site.baseUrl  = {config.Site.BaseUrl}");
-        Console.WriteLine($"  content.root  = {config.Content.Root}");
-        Console.WriteLine($"  output.dir    = {config.Output.Dir}");
-        Console.WriteLine($"  renderMode    = {config.RenderMode}");
-        Console.WriteLine();
-        Console.WriteLine("(build pipeline not implemented yet — this is Phase 0 scaffolding)");
+        var siteRoot = Path.GetDirectoryName(Path.GetFullPath(configPath))!;
+        var runtimeDistDir = ResolveRuntimeDistDir();
+
+        if (!RunOneBuild(config, siteRoot, runtimeDistDir, "Built"))
+        {
+            return 1;
+        }
+        if (runtimeDistDir == null)
+        {
+            Console.WriteLine("  (runtime/dist not found -- built without nav/routing JS; see PLAN.md's Client runtime packaging section)");
+        }
         return 0;
+    }
+
+    // `canary serve` does NOT re-read config.json on every rebuild -- the
+    // site config is treated as fixed for the lifetime of a serve session.
+    // If you edit config.json, restart the server. A deliberate v1 scope
+    // choice (see PLAN.md Phase 2), not an oversight: re-validating a config
+    // that might now be broken mid-session, while still serving the last
+    // good output, adds real complexity for a dev-only tool.
+    static int RunServe(string configPath, string? portOption)
+    {
+        CanaryConfig config;
+        try
+        {
+            config = ConfigLoader.Load(configPath);
+        }
+        catch (CanaryConfigException ex)
+        {
+            Console.Error.WriteLine(ex.Message);
+            return 1;
+        }
+
+        var siteRoot = Path.GetDirectoryName(Path.GetFullPath(configPath))!;
+        var runtimeDistDir = ResolveRuntimeDistDir();
+        var port = portOption != null ? int.Parse(portOption) : 8080;
+        var outputRoot = Path.Combine(siteRoot, config.Output.Dir);
+
+        RunOneBuild(config, siteRoot, runtimeDistDir, "[build]");
+
+        using var watcher = new SiteWatcher(siteRoot, () => RunOneBuild(config, siteRoot, runtimeDistDir, "[rebuild]"));
+        watcher.Start();
+
+        using var cts = new CancellationTokenSource();
+        Console.CancelKeyPress += (_, e) =>
+        {
+            e.Cancel = true;
+            cts.Cancel();
+        };
+
+        using var server = new StaticFileServer(outputRoot, port);
+        Console.WriteLine($"Serving {outputRoot} at http://localhost:{port}/ (Ctrl+C to stop)");
+        server.RunAsync(cts.Token).GetAwaiter().GetResult();
+        return 0;
+    }
+
+    // Neither widget command reads config.json at all -- they only need to
+    // know the site's directory (to find its own widgets/ folder alongside
+    // the built-in ones), not anything the config actually says. So unlike
+    // build/serve, a site doesn't need a valid (or even present) config.json
+    // for these to work.
+    static int RunWidgetsList(string configPath)
+    {
+        var siteRoot = Path.GetDirectoryName(Path.GetFullPath(configPath))!;
+        var runtimeDistDir = ResolveRuntimeDistDir();
+
+        var templates = WidgetDiscovery.Discover(siteRoot, runtimeDistDir, "*.html");
+        if (templates.Count == 0)
+        {
+            Console.WriteLine("No widgets found.");
+            return 0;
+        }
+
+        foreach (var name in templates.Keys.OrderBy(n => n, StringComparer.Ordinal))
+        {
+            Console.WriteLine(name);
+        }
+        return 0;
+    }
+
+    static int RunWidgetShow(string configPath, string name)
+    {
+        var siteRoot = Path.GetDirectoryName(Path.GetFullPath(configPath))!;
+        var runtimeDistDir = ResolveRuntimeDistDir();
+
+        var templates = WidgetDiscovery.Discover(siteRoot, runtimeDistDir, "*.html");
+        if (!templates.TryGetValue(name.ToLowerInvariant(), out var templatePath))
+        {
+            Console.Error.WriteLine($"No widget named '{name}' found.");
+            return 1;
+        }
+
+        var example = WidgetClipboardExample.Extract(templatePath);
+        if (example == null)
+        {
+            Console.Error.WriteLine($"Widget '{name}' has no clipboard example.");
+            return 1;
+        }
+
+        Console.WriteLine(example);
+        return 0;
+    }
+
+    static bool RunOneBuild(CanaryConfig config, string siteRoot, string? runtimeDistDir, string label)
+    {
+        try
+        {
+            var summary = new SiteBuilder().Build(config, siteRoot, runtimeDistDir);
+            Console.WriteLine($"{label} {summary.TotalRoutes} route(s) -> {summary.OutputRoot}");
+            Console.WriteLine($"  rendered        = {summary.PagesRendered}");
+            Console.WriteLine($"  reused unchanged = {summary.PagesReusedUnchanged}");
+            return true;
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or NotSupportedException)
+        {
+            Console.Error.WriteLine($"{label} failed: {ex.Message}");
+            return false;
+        }
+    }
+
+    // Dev-convenience only: true embedding of the compiled JS runtime into
+    // the Canary package itself is a known, tracked gap (see PLAN.md), not
+    // solved here. This just finds runtime/dist/ relative to Canary's own
+    // repo layout when run via `dotnet run`/from a local build, so the
+    // pipeline is testable end-to-end during development.
+    static string? ResolveRuntimeDistDir()
+    {
+        var dir = new DirectoryInfo(AppContext.BaseDirectory);
+        for (var i = 0; i < 8 && dir != null; i++, dir = dir.Parent)
+        {
+            var candidate = Path.Combine(dir.FullName, "runtime", "dist");
+            if (Directory.Exists(candidate))
+            {
+                return candidate;
+            }
+        }
+        return null;
     }
 
     static string? GetOption(string[] args, string name)
@@ -70,6 +210,9 @@ class Program
         Console.WriteLine("Usage: canary <command> [options]");
         Console.WriteLine();
         Console.WriteLine("Commands:");
-        Console.WriteLine("  build [--config <path>]   Load and validate a site config (default: ./config.json)");
+        Console.WriteLine("  build [--config <path>]                Build the site once");
+        Console.WriteLine("  serve [--config <path>] [--port <n>]   Build, then serve output.dir locally, rebuilding on change (default port: 8080)");
+        Console.WriteLine("  widgets [--config <path>]              List discovered widgets (built-in + site-authored)");
+        Console.WriteLine("  widget <name> [--config <path>]        Print that widget's clipboard usage example");
     }
 }

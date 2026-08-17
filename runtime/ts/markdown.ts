@@ -32,6 +32,34 @@ function escapeAttr(s: string): string {
   return escapeHtml(s).replace(/"/g, "&quot;");
 }
 
+// Reverses escapeHtml()'s entity substitutions. Needed because renderInline
+// escapes the WHOLE line before the image/link regexes extract a URL out of
+// it -- without this, a URL containing "&" (e.g. a query string) would get
+// escaped once by that whole-line pass and AGAIN by escapeAttr() below,
+// producing "&amp;amp;". Ported fix, coordinated with the same bug found in
+// Canary.Core.Markdown.MarkdownRenderer (build-time C# renderer) -- see
+// PLAN.md's Phase 1 notes; fixing only one side would make build-time and
+// client-time rendering diverge.
+function unescapeHtmlEntities(s: string): string {
+  return s.replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">");
+}
+
+// Deliberate departure from consoland's original behavior: content authors
+// write asset paths like "content/games/images/x.png" -- which only worked
+// in the old pure-SPA because every page rendered at the same document URL
+// ("/"). Canary.Core.Markdown.MarkdownRenderer.ResolveUrl applies this same
+// fix on the build-time (C#) side for hybrid/static; spa mode still renders
+// entirely client-side, but the client always runs at "/" regardless of
+// hash route (no real page nesting happens in spa mode), so this mostly
+// matters here for consistency between the two renderers rather than fixing
+// an active bug in spa mode specifically.
+function resolveUrl(url: string): string {
+  if (url.length === 0) return url;
+  if (url.startsWith("/") || url.startsWith("#")) return url;
+  if (url.includes("://") || url.startsWith("mailto:") || url.startsWith("tel:")) return url;
+  return "/" + url;
+}
+
 function renderInline(text: string): string {
   const codeSpans: string[] = [];
   let out = escapeHtml(text);
@@ -44,11 +72,11 @@ function renderInline(text: string): string {
   });
 
   out = out.replace(/!\[([^\]]*)\]\(([^)\s]+)\)/g, (_m, alt: string, url: string) => {
-    return `<img src="${escapeAttr(url)}" alt="${escapeAttr(alt)}">`;
+    return `<img src="${escapeAttr(resolveUrl(unescapeHtmlEntities(url)))}" alt="${escapeAttr(alt)}">`;
   });
 
   out = out.replace(/\[([^\]]*)\]\(([^)\s]+)\)/g, (_m, label: string, url: string) => {
-    return `<a href="${escapeAttr(url)}">${label}</a>`;
+    return `<a href="${escapeAttr(resolveUrl(unescapeHtmlEntities(url)))}">${label}</a>`;
   });
 
   out = out.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");

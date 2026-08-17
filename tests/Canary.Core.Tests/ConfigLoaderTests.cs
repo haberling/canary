@@ -29,6 +29,32 @@ public class ConfigLoaderTests
         Assert.Equal("css/theme.css", config.Theme.Theme);
     }
 
+    [Fact]
+    public void LoadFromJson_WidgetsSection_DefaultsWhenOmitted()
+    {
+        var config = ConfigLoader.LoadFromJson(ValidJson);
+
+        Assert.True(config.Widgets.CopyDefaultsOnInit);
+        Assert.False(config.Widgets.PreferBuiltIn);
+    }
+
+    [Fact]
+    public void LoadFromJson_WidgetsSection_ParsesExplicitValues()
+    {
+        var json = """
+            {
+              "site": { "name": "Test", "baseUrl": "https://example.com" },
+              "content": { "root": "content" },
+              "widgets": { "copyDefaultsOnInit": false, "preferBuiltIn": true }
+            }
+            """;
+
+        var config = ConfigLoader.LoadFromJson(json);
+
+        Assert.False(config.Widgets.CopyDefaultsOnInit);
+        Assert.True(config.Widgets.PreferBuiltIn);
+    }
+
     [Theory]
     [InlineData("spa", RenderMode.Spa)]
     [InlineData("static", RenderMode.Static)]
