@@ -1,0 +1,465 @@
+/*
+ * Canary framework base layer.
+ *
+ * Generic, reusable layout for the standard Canary shell (header/nav/#app/
+ * footer) plus the built-in widgets (downloads, slideshow). Every visual
+ * property that's actually a brand decision (colors, logo sizing, wordmark
+ * typography) is a CSS custom property or isolated in a rule a theme layer
+ * is expected to override -- this file should never need per-site edits.
+ *
+ * A site's theme.css loads after this file and overrides the :root tokens
+ * below (and, if it wants a different logo/title treatment, the .site-logo
+ * / .site-title rules) with its own branding. See templates/default/css in
+ * the Canary repo for how this pairs with a theme layer, and PLAN.md's
+ * "CSS framework/theme split" note for the reasoning.
+ */
+
+:root {
+  color-scheme: dark;
+  --bg: #17181c;
+  --bg-elevated: #1f2126;
+  --text: #e8e9eb;
+  --text-dim: #9aa0a8;
+  --accent: #4f8cff;
+  --border: #2b2d33;
+  --max-width: 860px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  min-height: 100%;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  line-height: 1.6;
+  display: flex;
+  flex-direction: column;
+}
+
+a {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+blockquote {
+  margin: 1rem 0 1rem 1.5rem;
+  padding: 0.2rem 1rem;
+  border-left: 3px solid var(--accent);
+  color: var(--text-dim);
+}
+
+blockquote p {
+  margin: 0.4rem 0;
+}
+
+.site-header {
+  display: flex;
+  flex-direction: column;
+  padding: 1rem 1.5rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-elevated);
+}
+
+.site-header-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.5rem;
+  flex-wrap: nowrap;
+  padding-bottom: 0.75rem;
+}
+
+.site-nav {
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--border);
+}
+
+.site-tagline {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.site-tagline p {
+  margin: 0;
+  color: var(--text-dim);
+  font-size: 0.85rem;
+  text-align: right;
+}
+
+/* Generic wordmark treatment -- a theme layer overrides font-family/size for
+   its own brand identity (see PLAN.md: consoland's is a large monospace
+   wordmark, which is a theme decision, not a framework default). */
+.site-title {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-shrink: 0;
+  font-family: inherit;
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+/* Generic safe default -- a theme layer overrides sizing/aspect-ratio/border
+   for its own actual logo asset (see PLAN.md: logo sizing is explicitly a
+   branding decision, not a framework default). */
+.site-logo {
+  height: 40px;
+  width: auto;
+  object-fit: contain;
+}
+
+.site-nav-list {
+  display: flex;
+  gap: 1.25rem;
+  flex-wrap: wrap;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.nav-item {
+  position: relative;
+}
+
+.nav-item.has-dropdown {
+  /* Extends the item's actual hover box down into the visual gap below the
+     label, so crossing that gap doesn't drop out of :hover before reaching
+     the dropdown. The negative margin cancels the padding's layout push. */
+  padding-bottom: 0.6rem;
+  margin-bottom: -0.6rem;
+}
+
+.nav-label {
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  cursor: pointer;
+  color: var(--text-dim);
+  font-size: 0.95rem;
+}
+
+a.nav-label {
+  text-decoration: none;
+}
+
+.nav-label:hover,
+.nav-item:focus-within .nav-label {
+  color: var(--accent);
+}
+
+.nav-item.active > .nav-label {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.nav-dropdown {
+  display: none;
+  position: absolute;
+  top: 100%;
+  left: 0;
+  min-width: 160px;
+  padding: 0.4rem 0;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.35);
+  z-index: 20;
+}
+
+.nav-item.has-dropdown:hover .nav-dropdown,
+.nav-item.has-dropdown:focus-within .nav-dropdown {
+  display: block;
+}
+
+.nav-dropdown a {
+  display: block;
+  padding: 0.4rem 0.9rem;
+  color: var(--text-dim);
+  font-size: 0.9rem;
+  white-space: nowrap;
+}
+
+.nav-dropdown a:hover {
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+  text-decoration: none;
+}
+
+.nav-dropdown a.active {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+#app {
+  flex: 1;
+  width: 100%;
+  max-width: var(--max-width);
+  margin: 0 auto;
+  padding: 2rem 1.5rem;
+}
+
+#app img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+  border-radius: 6px;
+}
+
+.site-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem 1.5rem;
+  border-top: 1px solid var(--border);
+  color: var(--text-dim);
+  font-size: 0.85rem;
+}
+
+/* --- built-in widgets: downloads --- */
+
+.downloads-widget {
+  border: 1px solid var(--border);
+  background: var(--bg-elevated);
+  border-radius: 8px;
+  padding: 1rem;
+  margin: 1.5rem 0;
+}
+
+.downloads-widget h3 {
+  margin-top: 0;
+}
+
+.downloads-widget ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-flow: row wrap;
+  gap: 0.5rem;
+}
+
+.downloads-widget a.download-button {
+  display: inline-block;
+  padding: 0.4rem 0.8rem;
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  color: var(--accent);
+}
+
+.downloads-widget a.download-button:hover {
+  background: var(--accent);
+  color: var(--bg);
+  text-decoration: none;
+}
+
+.copy-command {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 100%;
+  min-width: 0;
+  gap: 0.3rem;
+}
+
+.copy-command-label {
+  color: var(--text-dim);
+  font-size: 0.85rem;
+}
+
+.copy-command-row {
+  display: flex;
+  align-items: stretch;
+  min-width: 0;
+  gap: 0.5rem;
+}
+
+.copy-command-text {
+  flex: 1;
+  min-width: 0;
+  overflow-x: auto;
+  white-space: pre;
+  padding: 0.4rem 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text);
+  font-family: Consolas, "Cascadia Code", "SF Mono", Menlo, "Liberation Mono", monospace;
+  font-size: 0.9rem;
+}
+
+.copy-command-button {
+  flex-shrink: 0;
+  padding: 0.4rem 0.8rem;
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--accent);
+  font: inherit;
+  cursor: pointer;
+}
+
+.copy-command-button:hover {
+  background: var(--accent);
+  color: var(--bg);
+}
+
+/* --- built-in widgets: slideshow --- */
+
+.slideshow-widget {
+  border: 1px solid var(--border);
+  background: var(--bg-elevated);
+  border-radius: 8px;
+  padding: 1rem;
+  margin: 1.5rem 0;
+}
+
+.slideshow-widget:focus {
+  outline: none;
+}
+
+.slideshow-widget:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+.slideshow-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.slideshow-widget h3 {
+  margin: 0;
+}
+
+.slideshow-toggle {
+  flex-shrink: 0;
+  margin-left: auto;
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  border: 1px solid var(--accent);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--accent);
+  font-size: 0.85rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.slideshow-toggle:hover {
+  background: var(--accent);
+  color: var(--bg);
+}
+
+.slideshow-viewport {
+  position: relative;
+  overflow: hidden;
+  border-radius: 6px;
+  background: var(--bg);
+}
+
+.slideshow-track {
+  display: flex;
+  transition: transform 0.3s ease;
+}
+
+.slideshow-slide {
+  flex: 0 0 100%;
+  min-width: 0;
+  margin: 0;
+}
+
+.slideshow-slide img {
+  display: block;
+  width: 100%;
+  max-height: 480px;
+  object-fit: contain;
+  background: var(--bg);
+}
+
+.slideshow-caption {
+  padding: 0.5rem 0.75rem;
+  color: var(--text-dim);
+  font-size: 0.85rem;
+  text-align: center;
+}
+
+.slideshow-nav {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  width: 2.25rem;
+  height: 2.25rem;
+  background: color-mix(in srgb, var(--bg) 65%, transparent);
+  color: var(--text);
+  font: inherit;
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.slideshow-nav:hover {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--bg);
+}
+
+.slideshow-prev {
+  left: 0.6rem;
+}
+
+.slideshow-next {
+  right: 0.6rem;
+}
+
+.slideshow-footer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+}
+
+.slideshow-dots {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.slideshow-dot {
+  width: 0.55rem;
+  height: 0.55rem;
+  padding: 0;
+  border: 1px solid var(--accent);
+  border-radius: 999px;
+  background: transparent;
+  cursor: pointer;
+}
+
+.slideshow-dot.active {
+  background: var(--accent);
+}
+
+.slideshow-counter {
+  color: var(--text-dim);
+  font-size: 0.85rem;
+}

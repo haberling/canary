@@ -13,6 +13,9 @@ obj/
 # Site build output (prerendered site, per PLAN.md)
 docs/
 
+# Local dogfood sample site (Pirates of Penzance) -- disposable, never a real site
+workspace/
+
 # Editor / OS
 .vs/
 .vscode/

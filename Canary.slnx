@@ -1,0 +1,9 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Canary.Core/Canary.Core.csproj" />
+    <Project Path="src/Canary/Canary.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Canary.Core.Tests/Canary.Core.Tests.csproj" />
+  </Folder>
+</Solution>
