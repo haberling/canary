@@ -8,31 +8,35 @@ A widget is **declarative on both sides, never code**:
 
 - An `.html` file: a real [Mustache](https://mustache.github.io/)-syntax template.
 - An optional sibling `.js` file: shared client-side behavior, only needed if the widget is interactive.
+- An optional sibling `.css` file: styling for the widget, only needed if it needs any beyond what falls out of the page's own theme.
 
-There is no third piece, no C# class to write, no registration step. `Canary.Core.Widgets.TemplateWidgetRenderer` is the entire build-time "renderer" for every widget, built-in or site-authored — it parses a markdown fence block's body as YAML and fills the matching `.html` template with it. That's it.
+There is no fourth piece, no C# class to write, no registration step. `Canary.Core.Widgets.TemplateWidgetRenderer` is the entire build-time "renderer" for every widget, built-in or site-authored — it parses a markdown fence block's body as YAML and fills the matching `.html` template with it. That's it.
+
+**All three file types are discovered and shipped identically, built-in or site-authored — no widget ever gets special-cased treatment another widget can't also have.** This wasn't always true: the built-in `downloads`/`slideshow` widgets' CSS used to be hardcoded directly into the site's own `framework.css`, which meant a site-authored widget had no equivalent place to put its styling. Fixed by giving `.css` the same discovery/copy/link treatment `.js` already had — see the `.css` section below.
 
 ## Step by step: adding a new widget
 
 1. **Pick a name** — this becomes both the filename and the fence tag. Say you're building a `callout` widget.
 2. **Create `widgets/callout.html`** in your site root (next to `content/`, `config.json`, etc.) — create the `widgets/` folder if it doesn't exist yet. Write it as a plain Mustache template (see syntax below).
 3. **(Optional) create `widgets/callout.js`** alongside it, if the widget needs any client-side interactivity (click handlers, etc.).
-4. **Use it in content** — any `.md` file can now write:
+4. **(Optional) create `widgets/callout.css`** alongside it, if the widget needs its own styling.
+5. **Use it in content** — any `.md` file can now write:
    ````markdown
    ```callout
    title: Heads up
    body: This is a callout.
    ```
    ````
-   No config entry, no import, nothing to wire up. `Canary.Core.Widgets.WidgetDiscovery` finds `callout.html`/`callout.js` by filename alone (case-insensitive) the moment `canary build` runs.
-5. **Rebuild and check the output.** If you don't see your change, see the checksum-gating gotcha below before you assume something's wrong with the template.
+   No config entry, no import, nothing to wire up. `Canary.Core.Widgets.WidgetDiscovery` finds `callout.html`/`callout.js`/`callout.css` by filename alone (case-insensitive) the moment `canary build` runs.
+6. **Rebuild and check the output.**
 
-That's the whole workflow. The rest of this doc is reference material for steps 2–3.
+That's the whole workflow. The rest of this doc is reference material for steps 2–4.
 
 ## Discovery rules (where widget files live, and precedence)
 
-`WidgetDiscovery.Discover` looks in two places, one file extension at a time (`*.html` for templates, `*.js` for behavior scripts):
+`WidgetDiscovery.Discover` looks in two places, one file extension at a time (`*.html` for templates, `*.js` for behavior scripts, `*.css` for styling):
 
-- **Built-in**: `runtime/widgets/` in the Canary repo itself (source), copied unchanged to `runtime/dist/widgets/` as part of Canary's own build — `downloads` and `slideshow` live here today.
+- **Built-in**: `runtime/widgets/` in the Canary repo itself (source), copied unchanged to `runtime/dist/widgets/` as part of Canary's own build — `downloads` and `slideshow` (each with an `.html`, `.js`, and `.css`) live here today.
 - **Site-authored**: `<siteRoot>/widgets/` — a `widgets/` folder next to your site's `config.json`.
 
 **Site-authored wins on a filename collision.** If your site has its own `widgets/downloads.html`, it's used instead of the built-in one, no config flag needed. (The `widgets.preferBuiltIn` config field is meant to flip that precedence back — it's schema-only right now, not wired up to `WidgetDiscovery` yet.)
@@ -131,6 +135,14 @@ If your widget needs client-side behavior (a button, a toggle, keyboard nav), gi
 
 Look at `runtime/widgets/downloads.js` (simple, one delegated click handler) and `runtime/widgets/slideshow.js` (more involved: delegation + a `MutationObserver` for autoplay/first-load setup) as reference implementations.
 
+## The `.css` stylesheet file (optional, for any widget that needs its own styling)
+
+Same idea as `.js`: a sibling `.css` file with the same base name (`callout.css` next to `callout.html`), entirely optional. `SiteBuilder` copies every discovered widget stylesheet to `output/css/widgets/<name>.css` and the page shell's `{{widgetStyles}}` placeholder gets a `<link rel="stylesheet" href="/css/widgets/<name>.css">` for it — same site-wide-not-per-page-usage tradeoff as `{{widgetScripts}}`, every page links every discovered widget's stylesheet whether or not that page uses it.
+
+Your widget's CSS can reference the site's own color tokens (`--bg`, `--bg-elevated`, `--text`, `--text-dim`, `--border`, `--accent`, defined on `:root` in `framework.css`) directly — `var(--accent)` etc. work in your widget's stylesheet the same as anywhere else, since custom properties cascade globally once defined, regardless of which `<link>`ed file references them. That's how the built-in widgets stay visually consistent with whatever theme a site has applied without hardcoding any color themselves. See `runtime/widgets/downloads.css`/`slideshow.css` for real examples of this.
+
+Don't reach into the site's own `framework.css`/`theme.css` to style your widget, even though nothing stops you technically — that file is the site's own base layer, not a place for a specific widget's rules to live. Keep every widget fully self-contained across all three of its files, same reasoning as everything else in this doc.
+
 ## Checking your work: `canary widgets` / `canary widget <name>`
 
 - **`canary widgets [--config <path>]`** — lists every discovered widget name (built-in + site-authored), sorted. Confirms your new widget was actually found before you go debug a fence tag typo.
@@ -147,13 +159,13 @@ Look at `runtime/widgets/downloads.js` (simple, one delegated click handler) and
 
   Print-only, not real OS clipboard access (no cross-platform clipboard API in .NET) — pipe it yourself if you want it on your clipboard (`canary widget callout | pbcopy` etc.).
 
-## A known gotcha: incremental builds don't see widget edits yet
+## Incremental builds do see widget edits
 
-`canary build`'s checksum-gating only hashes a page's **markdown source** — it does not currently account for the widget `.html`/`.js` files that page's content references (tracked as a known bug in `PLAN.md`, not yet fixed). If you edit a widget template while iterating and the rendered output doesn't seem to change, this is why — the page-level cache doesn't know the widget changed. Clear `output.dir` (or otherwise force a full rebuild) rather than trusting an incremental one while actively developing a widget.
+`canary build`'s checksum-gating folds every discovered widget file's content (all three types — `.html`, `.js`, `.css`) into every page's cache key, so editing any widget correctly invalidates the cache for pages that use it, not just the page whose own markdown changed. This didn't used to be true and is worth knowing the shape of if you're ever debugging a stale-output-feeling issue: the check is site-wide (any widget file changing invalidates every page, not just pages that reference that specific widget) rather than tracking per-page usage — a deliberate simplicity tradeoff, same one already made for `{{widgetScripts}}`/`{{widgetStyles}}` being site-wide too.
 
 ## Full working examples
 
 Both built-in widgets are real, complete reference implementations — read them before writing your first custom one:
 
-- `runtime/widgets/downloads.html` + `.js` — a list of download links, with a conditional branch for a copy-to-clipboard command row (`{{#copy}}`/`{{^copy}}`), and a `!url`-tagged relative path example.
-- `runtime/widgets/slideshow.html` + `.js` — a list-of-slides section, a title with a fallback, and the more involved `.js` pattern (delegation + `MutationObserver` for autoplay).
+- `runtime/widgets/downloads.html` + `.js` + `.css` — a list of download links, with a conditional branch for a copy-to-clipboard command row (`{{#copy}}`/`{{^copy}}`), a `!url`-tagged relative path example, and CSS that uses the site's own color tokens.
+- `runtime/widgets/slideshow.html` + `.js` + `.css` — a list-of-slides section, a title with a fallback, the more involved `.js` pattern (delegation + `MutationObserver` for autoplay), and CSS for the viewport/nav/dots layout.

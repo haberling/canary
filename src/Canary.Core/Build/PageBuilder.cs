@@ -39,9 +39,10 @@ public sealed partial class PageBuilder
     }
 
     // shellTemplate placeholders: {{title}}, {{siteName}}, {{checksum}},
-    // {{content}}, {{widgetScripts}}. widgetScriptsHtml is pre-built by the
-    // caller (SiteBuilder, which knows what's discovered site-wide) --
-    // PageBuilder just substitutes it, same as every other placeholder.
+    // {{content}}, {{widgetScripts}}, {{widgetStyles}}. widgetScriptsHtml/
+    // widgetStylesHtml are pre-built by the caller (SiteBuilder, which
+    // knows what's discovered site-wide) -- PageBuilder just substitutes
+    // them, same as every other placeholder.
     //
     // transformSource, if given, is applied to the raw markdown before
     // rendering -- but ONLY on a cache miss (see below), never just to
@@ -54,7 +55,7 @@ public sealed partial class PageBuilder
     // a page's own heading).
     public PageBuildResult BuildPage(
         string sourceMarkdownPath, string outputHtmlPath, string shellTemplate, string siteName,
-        string widgetScriptsHtml = "", string extraChecksumSeed = "", Func<string, string>? transformSource = null)
+        string widgetScriptsHtml = "", string widgetStylesHtml = "", string extraChecksumSeed = "", Func<string, string>? transformSource = null)
     {
         var source = File.ReadAllText(sourceMarkdownPath);
         var checksum = ComputeChecksum(source, extraChecksumSeed);
@@ -83,6 +84,7 @@ public sealed partial class PageBuilder
             .Replace("{{checksum}}", checksumComment)
             .Replace("{{siteName}}", siteName)
             .Replace("{{widgetScripts}}", widgetScriptsHtml)
+            .Replace("{{widgetStyles}}", widgetStylesHtml)
             .Replace("{{content}}", content);
 
         var outputDir = Path.GetDirectoryName(outputHtmlPath);

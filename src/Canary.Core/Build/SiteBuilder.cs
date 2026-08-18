@@ -10,8 +10,8 @@ public sealed class SiteBuilder
 {
     // runtimeDistDir points at the compiled JS runtime (runtime/dist/, see
     // PLAN.md's Client runtime packaging section) AND the built-in widgets
-    // (runtime/dist/widgets/*.html + *.js, copied there unchanged -- no
-    // compile step, see PLAN.md's widget-controversy notes). Null skips
+    // (runtime/dist/widgets/*.html + *.js + *.css, copied there unchanged --
+    // no compile step, see PLAN.md's widget-controversy notes). Null skips
     // both: the build still produces valid HTML/CSS, just without nav/
     // routing JS and without any widgets rendering (fenced blocks fall back
     // to plain code blocks) -- true embedding into the Canary package
@@ -26,6 +26,13 @@ public sealed class SiteBuilder
         Manifest.ManifestBuilder.BuildAndWrite(contentRoot);
         var routes = ContentScanner.Scan(contentRoot);
         var behaviorScripts = Widgets.WidgetDiscovery.Discover(siteRoot, runtimeDistDir, "*.js");
+        // Widget CSS: discovered and shipped exactly like behavior scripts
+        // -- built-in and site-authored are found the same way, no widget
+        // ever gets special-cased styling another widget can't also have.
+        // See PLAN.md's Widget system section for why this exists (it
+        // didn't, until a review caught built-in widget CSS baked directly
+        // into framework.css, breaking that same-treatment promise).
+        var styleSheets = Widgets.WidgetDiscovery.Discover(siteRoot, runtimeDistDir, "*.css");
 
         // Auto-create a self-documenting .hooks.json for every content
         // directory that has markdown directly inside it (derived from the
@@ -40,7 +47,7 @@ public sealed class SiteBuilder
         // just happens to need the same route list.
         WriteSeoFiles(config, outputRoot, routes);
 
-        var summary = BuildPrerendered(config, siteRoot, contentRoot, outputRoot, routes, runtimeDistDir, behaviorScripts);
+        var summary = BuildPrerendered(config, siteRoot, contentRoot, outputRoot, routes, runtimeDistDir, behaviorScripts, styleSheets);
 
         if (runtimeDistDir != null)
         {
@@ -48,33 +55,36 @@ public sealed class SiteBuilder
         }
 
         // Not gated on runtimeDistDir: site-authored widget behavior
-        // scripts are discovered independently of it, and a page's
-        // {{widgetScripts}} references them either way -- gating this
-        // would leave those <script> tags pointing at files that were
+        // scripts/styles are discovered independently of it, and a page's
+        // {{widgetScripts}}/{{widgetStyles}} reference them either way --
+        // gating this would leave those tags pointing at files that were
         // never actually copied.
         CopyWidgetFiles(behaviorScripts, Path.Combine(outputRoot, "js", "widgets"));
+        CopyWidgetFiles(styleSheets, Path.Combine(outputRoot, "css", "widgets"));
 
         return summary;
     }
 
     private static BuildSummary BuildPrerendered(
         CanaryConfig config, string siteRoot, string contentRoot, string outputRoot, IReadOnlyList<ContentRoute> routes,
-        string? runtimeDistDir, Dictionary<string, string> behaviorScripts)
+        string? runtimeDistDir, Dictionary<string, string> behaviorScripts, Dictionary<string, string> styleSheets)
     {
         var shellTemplate = LoadShellTemplate(config, siteRoot);
         var widgetTemplates = Widgets.WidgetDiscovery.Discover(siteRoot, runtimeDistDir, "*.html");
         var widgets = widgetTemplates.ToDictionary(
             kv => kv.Key, Markdown.IWidgetRenderer (kv) => new Widgets.TemplateWidgetRenderer(kv.Value));
         var widgetScriptsHtml = BuildWidgetScriptsHtml(behaviorScripts.Keys);
+        var widgetStylesHtml = BuildWidgetStylesHtml(styleSheets.Keys);
 
         // One combined hash of every discovered widget file's content,
         // computed once for the whole build (not per page) -- same
         // site-wide-not-per-usage simplicity tradeoff already made for
-        // {{widgetScripts}}, rather than scanning each page's markdown to
-        // know exactly which widgets it references. Folded into every
-        // page's checksum below so editing any widget invalidates every
-        // page's cache, fixing the gap tracked in PLAN.md's Known bugs.
-        var widgetChecksumSeed = ComputeWidgetChecksumSeed(widgetTemplates, behaviorScripts);
+        // {{widgetScripts}}/{{widgetStyles}}, rather than scanning each
+        // page's markdown to know exactly which widgets it references.
+        // Folded into every page's checksum below so editing any widget
+        // (template, behavior, OR style) invalidates every page's cache,
+        // fixing the gap tracked in PLAN.md's Known bugs.
+        var widgetChecksumSeed = ComputeWidgetChecksumSeed(widgetTemplates, behaviorScripts, styleSheets);
 
         var pageBuilder = new PageBuilder(new Markdown.MarkdownRenderer(widgets));
 
@@ -92,7 +102,7 @@ public sealed class SiteBuilder
 
             var result = pageBuilder.BuildPage(
                 route.SourcePath, outputPath, shellTemplate, config.Site.Name!,
-                widgetScriptsHtml, extraChecksumSeed, transformSource);
+                widgetScriptsHtml, widgetStylesHtml, extraChecksumSeed, transformSource);
             if (result.ContentOutcome == ContentRenderOutcome.Rendered) rendered++;
             else reused++;
         }
@@ -131,10 +141,15 @@ public sealed class SiteBuilder
         string.Concat(widgetNames.OrderBy(n => n, StringComparer.Ordinal)
             .Select(n => $"<script src=\"/js/widgets/{n}.js\" defer></script>\n"));
 
-    private static string ComputeWidgetChecksumSeed(Dictionary<string, string> templates, Dictionary<string, string> behaviorScripts)
+    private static string BuildWidgetStylesHtml(IEnumerable<string> widgetNames) =>
+        string.Concat(widgetNames.OrderBy(n => n, StringComparer.Ordinal)
+            .Select(n => $"<link rel=\"stylesheet\" href=\"/css/widgets/{n}.css\">\n"));
+
+    private static string ComputeWidgetChecksumSeed(
+        Dictionary<string, string> templates, Dictionary<string, string> behaviorScripts, Dictionary<string, string> styleSheets)
     {
         var sb = new System.Text.StringBuilder();
-        foreach (var path in templates.Values.Concat(behaviorScripts.Values).OrderBy(p => p, StringComparer.Ordinal))
+        foreach (var path in templates.Values.Concat(behaviorScripts.Values).Concat(styleSheets.Values).OrderBy(p => p, StringComparer.Ordinal))
         {
             sb.Append(File.ReadAllText(path)).Append('\0');
         }

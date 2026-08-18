@@ -141,6 +141,26 @@ public class SiteBuilderHooksTests : IDisposable
     }
 
     [Fact]
+    public void Build_EditingWidgetStylesheet_InvalidatesEveryPagesCache()
+    {
+        // Widget CSS is now discovered/checksummed the same way as widget
+        // HTML/JS (see the CSS-extraction-from-framework.css fix) -- this
+        // proves editing a widget's .css alone (page markup unchanged)
+        // still invalidates the cache, not just template/behavior edits.
+        Directory.CreateDirectory(Path.Combine(_siteRoot, "widgets"));
+        File.WriteAllText(Path.Combine(_siteRoot, "widgets", "greeting.html"), "<div>v1</div>");
+        File.WriteAllText(Path.Combine(_siteRoot, "widgets", "greeting.css"), ".greeting { color: red; }");
+        File.WriteAllText(Path.Combine(_siteRoot, "content", "index.md"), "# Home\n\n```greeting\n```");
+
+        new SiteBuilder().Build(NewConfig(), _siteRoot);
+
+        File.WriteAllText(Path.Combine(_siteRoot, "widgets", "greeting.css"), ".greeting { color: blue; }");
+        var summary = new SiteBuilder().Build(NewConfig(), _siteRoot);
+
+        Assert.Equal(1, summary.PagesRendered);
+    }
+
+    [Fact]
     public void Build_EditingHookScript_InvalidatesThatPagesCache()
     {
         WriteMarkerHook("tools/breadcrumb.cmd", "MARKER-V1");

@@ -89,8 +89,22 @@ public static class HookRunner
         var stdoutTask = process.StandardOutput.ReadToEndAsync();
         var stderrTask = process.StandardError.ReadToEndAsync();
 
-        process.StandardInput.Write(input);
-        process.StandardInput.Close();
+        try
+        {
+            process.StandardInput.Write(input);
+            process.StandardInput.Close();
+        }
+        catch (IOException)
+        {
+            // Broken pipe: the process exited (e.g. a hook that ignores its
+            // input entirely, or a fast-failing one) before consuming all of
+            // stdin, or before consuming any of it at all. Not an error on
+            // its own -- the real signal is the exit code checked below, so
+            // let that produce the actual error message instead of this
+            // write failure masking it. Found via a real, reproducible test
+            // failure (a hook command that exits immediately without
+            // reading stdin), not by inspection.
+        }
 
         process.WaitForExit();
         var stdout = stdoutTask.GetAwaiter().GetResult();

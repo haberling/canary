@@ -91,6 +91,39 @@ public class SiteBuilderWidgetDiscoveryTests : IDisposable
     }
 
     [Fact]
+    public void Build_SiteAuthoredWidgetStylesheet_IsCopiedAndReferenced()
+    {
+        // A widget's optional .css file is discovered and shipped exactly
+        // like its .js sibling -- built-in and site-authored widgets get
+        // styling the same way, no special-casing. See PLAN.md's Widget
+        // system section: this didn't used to be true (built-in widget CSS
+        // was baked directly into framework.css, so a site-authored widget
+        // had nowhere to put its own styling).
+        var shellWithStyles = "<html><head>{{widgetStyles}}</head><body><main id=\"app\">{{content}}</main></body></html>";
+        File.WriteAllText(Path.Combine(_siteRoot, "shell.html"), shellWithStyles);
+
+        Directory.CreateDirectory(Path.Combine(_siteRoot, "widgets"));
+        File.WriteAllText(Path.Combine(_siteRoot, "widgets", "greeting.html"), "<div>{{name}}</div>");
+        File.WriteAllText(Path.Combine(_siteRoot, "widgets", "greeting.css"), ".greeting { color: red; }");
+        File.WriteAllText(Path.Combine(_siteRoot, "content", "index.md"), """
+            # Home
+
+            ```greeting
+            name: world
+            ```
+            """);
+
+        new SiteBuilder().Build(NewConfig(), _siteRoot);
+
+        var html = File.ReadAllText(Path.Combine(_siteRoot, "docs", "index.html"));
+        Assert.Contains("<link rel=\"stylesheet\" href=\"/css/widgets/greeting.css\">", html);
+
+        var copiedStylesheet = Path.Combine(_siteRoot, "docs", "css", "widgets", "greeting.css");
+        Assert.True(File.Exists(copiedStylesheet));
+        Assert.Equal(".greeting { color: red; }", File.ReadAllText(copiedStylesheet));
+    }
+
+    [Fact]
     public void Build_WidgetUrlTag_ResolvesToRootRelativePath_ThroughRealBuildPipeline()
     {
         // End-to-end version of the YamlParserTests unit tests: a widget's
