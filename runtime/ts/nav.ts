@@ -1,8 +1,8 @@
-// Populates the top nav from /content/manifest.json. Used by all three
-// render modes (static/hybrid/spa) -- pure page-enhancement JS regardless of
-// how content itself gets loaded/routed, per PLAN.md's Render modes section.
+// Populates the top nav from /content/manifest.json. Used by both render
+// modes (static/hybrid) -- pure page-enhancement JS regardless of how
+// content itself gets loaded/routed, per PLAN.md's Render modes section.
 //
-// hrefFor lets each mode decide the link shape: hybrid/spa use hash links
+// hrefFor lets each mode decide the link shape: hybrid uses hash links
 // ("#/<path>") for the client router to intercept; static uses real
 // root-relative paths ("/<path>/") since there's no client router.
 //
@@ -46,7 +46,8 @@ function renderNavItem(item: NavItem, hrefFor: (path: string) => string): string
 // currentPath must match a nav item's own `path` field exactly (e.g. "" for
 // the pinned Home item, "games/Tesselate" for a page) -- callers are
 // responsible for translating their own routing representation into that
-// convention; see hybrid-router.ts/spa-router.ts for why those differ.
+// convention; see hybrid-router.ts's contentFileFor for why that translation
+// is needed there.
 export function updateActiveNav(currentPath: string): void {
   const nav = document.getElementById("site-nav");
   if (!nav) return;

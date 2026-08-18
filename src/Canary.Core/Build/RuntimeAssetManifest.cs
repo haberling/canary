@@ -22,14 +22,6 @@ public static class RuntimeAssetManifest
         // markdown itself in this mode.
         RenderMode.Hybrid => ("hybrid-router.js", (IReadOnlyList<string>)["router.js", "nav.js"]),
 
-        // spa-router.js imports router.js + nav.js + markdown.js, and
-        // markdown.js dynamically imports widget modules by fence tag name.
-        // Widget files themselves aren't listed here -- they're discovered
-        // dynamically (built-in + site-authored) and copied separately by
-        // SiteBuilder, since the set of widgets isn't fixed the way these
-        // core runtime files are. See PLAN.md's widget-controversy notes.
-        RenderMode.Spa => ("spa-router.js", (IReadOnlyList<string>)["router.js", "nav.js", "markdown.js"]),
-
         _ => throw new ArgumentOutOfRangeException(nameof(mode), mode, "Unknown render mode."),
     };
 }

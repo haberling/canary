@@ -5,9 +5,10 @@ namespace Canary.Core.Markdown;
 // Ported from consoland's src/ts/markdown.ts -- the hand-rolled markdown -> HTML
 // renderer covering: headings, paragraphs, bold/italic, inline code,
 // links/images, fenced code blocks, widgets, unordered/ordered lists,
-// blockquotes, hr. Semantics are kept identical to the TS original so a page
-// renders the same whether it went through this (build-time, `hybrid`/
-// `static`) or the client-side renderer (`spa` mode only, see PLAN.md).
+// blockquotes, hr. This is now the only markdown renderer Canary has --
+// the TS client-side renderer this was ported from existed briefly for
+// `spa` mode before that mode was removed (see PLAN.md's Render modes
+// section); markdown->HTML always happens here, at build time, now.
 //
 // One deliberate difference from the TS version: widget dispatch is a
 // synchronous dictionary lookup instead of a dynamic `import()`, since the

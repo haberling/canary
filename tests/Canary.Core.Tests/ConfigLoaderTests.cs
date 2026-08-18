@@ -56,7 +56,6 @@ public class ConfigLoaderTests
     }
 
     [Theory]
-    [InlineData("spa", RenderMode.Spa)]
     [InlineData("static", RenderMode.Static)]
     [InlineData("hybrid", RenderMode.Hybrid)]
     public void LoadFromJson_ParsesRenderModeCaseInsensitiveEnum(string value, RenderMode expected)

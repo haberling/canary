@@ -15,9 +15,8 @@ function hrefFor(path: string): string {
 }
 
 // "" for the site root, matching the pinned Home nav item's own `path`
-// field (see Canary.Core.Manifest.ManifestBuilder.BuildNav) -- no
-// translation needed here, unlike spa-router.ts, since a prerendered URL of
-// "/" already falls out of "" directly.
+// field (see Canary.Core.Manifest.ManifestBuilder.BuildNav) -- a prerendered
+// URL of "/" falls out of "" directly.
 function contentFileFor(route: Route): string {
   return route.path === "/" ? "" : route.segments.join("/");
 }

@@ -7,9 +7,9 @@
 // strings.
 //
 // Clicks and keyboard nav use event delegation on `document`, so a widget
-// instance added later (hybrid mode's fragment-fetch swap, or a future
-// spa-mode client render) is handled automatically -- no re-init call
-// needed anywhere in the router code. The one thing delegation can't cover
+// instance added later (hybrid mode's fragment-fetch swap) is handled
+// automatically -- no re-init call needed anywhere in the router code. The
+// one thing delegation can't cover
 // is "run setup once when a new widget instance first appears" (hiding
 // nav/dots for a single-slide show, starting autoplay once the first image
 // loads) -- a MutationObserver handles that, the standard way to react to

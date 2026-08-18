@@ -1,9 +1,9 @@
 // Shared behavior for the downloads widget (see downloads.html for the
 // template/data contract) -- referenced once per page via <script defer>,
 // not duplicated per widget instance. Event delegation on `document` means
-// a widget instance added later (hybrid mode's fragment-fetch swap, or a
-// future spa-mode client render) is handled automatically, no re-init call
-// needed anywhere in the router code.
+// a widget instance added later (hybrid mode's fragment-fetch swap) is
+// handled automatically, no re-init call needed anywhere in the router
+// code.
 document.addEventListener("click", (e) => {
   const button = e.target.closest(".copy-command-button");
   if (!button) return;

@@ -53,17 +53,4 @@ public class SiteBuilderSeoTests : IDisposable
 
         Assert.Contains("Sitemap: https://example.com/sitemap.xml", File.ReadAllText(robotsPath));
     }
-
-    [Fact]
-    public void Build_SpaMode_WritesNeitherSitemapNorRobots()
-    {
-        // spa has no real per-route files to point a crawler at -- see
-        // PLAN.md's Render modes section ("not crawlable" by design).
-        File.WriteAllText(Path.Combine(_siteRoot, "content", "index.md"), "# Home");
-
-        new SiteBuilder().Build(NewConfig(RenderMode.Spa), _siteRoot);
-
-        Assert.False(File.Exists(Path.Combine(_siteRoot, "docs", "sitemap.xml")));
-        Assert.False(File.Exists(Path.Combine(_siteRoot, "docs", "robots.txt")));
-    }
 }

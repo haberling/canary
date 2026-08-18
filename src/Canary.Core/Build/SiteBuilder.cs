@@ -30,21 +30,10 @@ public sealed class SiteBuilder
         // Own step, sequenced right after the manifest build rather than
         // folded into BuildPrerendered's page-rendering loop -- sitemap/
         // robots generation is a distinct concern from rendering pages, it
-        // just happens to need the same route list. spa has no real
-        // per-route files to point a crawler at (see SitemapBuilder), so it
-        // gets neither file.
-        if (config.RenderMode is RenderMode.Hybrid or RenderMode.Static)
-        {
-            WriteSeoFiles(config, outputRoot, routes);
-        }
+        // just happens to need the same route list.
+        WriteSeoFiles(config, outputRoot, routes);
 
-        var summary = config.RenderMode switch
-        {
-            RenderMode.Hybrid or RenderMode.Static =>
-                BuildPrerendered(config, siteRoot, contentRoot, outputRoot, routes, runtimeDistDir, behaviorScripts),
-            RenderMode.Spa => BuildSpa(config, siteRoot, contentRoot, outputRoot, routes),
-            _ => throw new ArgumentOutOfRangeException(nameof(config), config.RenderMode, "Unknown render mode."),
-        };
+        var summary = BuildPrerendered(config, siteRoot, contentRoot, outputRoot, routes, runtimeDistDir, behaviorScripts);
 
         if (runtimeDistDir != null)
         {
@@ -84,44 +73,11 @@ public sealed class SiteBuilder
         }
 
         CopyThemeAssets(config, siteRoot, outputRoot);
-        // hybrid/static never ship raw markdown to the client -- content is
-        // always prerendered, so there's nothing for the browser to fetch.
-        CopyContentAssets(contentRoot, outputRoot, includeMarkdown: false);
+        // Content is always prerendered -- markdown source never ships to
+        // the client, there's nothing for the browser to fetch.
+        CopyContentAssets(contentRoot, outputRoot);
 
         return new BuildSummary(routes.Count, rendered, reused, outputRoot);
-    }
-
-    // No prerendering: one real HTML file (the shell, #app populated
-    // entirely client-side), raw content/**.md copied for the client to
-    // fetch, matching consoland's original deploy.cs behavior for its
-    // pre-Canary pure-SPA. See PLAN.md's Render modes section.
-    //
-    // Widget rendering for spa mode is a known, tracked gap as of this
-    // writing: it needs the same YAML-parse + Mustache-fill pipeline
-    // running client-side in JS, which hasn't been built yet (see PLAN.md's
-    // widget-controversy notes). A fenced widget block just falls back to
-    // a plain code block in the browser until that lands -- not a crash,
-    // but not a widget either.
-    private static BuildSummary BuildSpa(
-        CanaryConfig config, string siteRoot, string contentRoot, string outputRoot, IReadOnlyList<ContentRoute> routes)
-    {
-        var shellTemplate = LoadShellTemplate(config, siteRoot);
-
-        var html = shellTemplate
-            .Replace("{{title}}", config.Site.Name!)
-            .Replace("{{siteName}}", config.Site.Name!)
-            .Replace("{{checksum}}", "") // nothing is prerendered, so there's no source checksum to embed
-            .Replace("{{widgetScripts}}", "")
-            .Replace("{{content}}", "<p>Loading&hellip;</p>");
-
-        File.WriteAllText(Path.Combine(outputRoot, "index.html"), html);
-
-        CopyThemeAssets(config, siteRoot, outputRoot);
-        CopyContentAssets(contentRoot, outputRoot, includeMarkdown: true);
-
-        // No prerendering happened, so "rendered"/"reused" don't apply --
-        // TotalRoutes still reflects how many content pages exist.
-        return new BuildSummary(routes.Count, PagesRendered: 0, PagesReusedUnchanged: 0, outputRoot);
     }
 
     private static void WriteSeoFiles(CanaryConfig config, string outputRoot, IReadOnlyList<ContentRoute> routes)
@@ -171,17 +127,17 @@ public sealed class SiteBuilder
         }
     }
 
-    // Mirrors consoland's deploy.cs CopyContent. includeMarkdown is false
-    // for hybrid/static (content is always prerendered, nothing to fetch)
-    // and true for spa (the only mode that fetches raw markdown client-side).
-    private static void CopyContentAssets(string contentRoot, string outputRoot, bool includeMarkdown)
+    // Mirrors consoland's deploy.cs CopyContent. Markdown source is never
+    // copied -- content is always prerendered, so there's nothing for the
+    // browser to fetch.
+    private static void CopyContentAssets(string contentRoot, string outputRoot)
     {
         var destRoot = Path.Combine(outputRoot, "content");
         foreach (var file in Directory.GetFiles(contentRoot, "*", SearchOption.AllDirectories))
         {
             var name = Path.GetFileName(file);
             var isMarkdown = file.EndsWith(".md", StringComparison.OrdinalIgnoreCase);
-            if (name == ".nav.json" || (isMarkdown && !includeMarkdown)) continue;
+            if (name == ".nav.json" || isMarkdown) continue;
 
             var relative = Path.GetRelativePath(contentRoot, file);
             CopyFile(file, Path.Combine(destRoot, relative));
