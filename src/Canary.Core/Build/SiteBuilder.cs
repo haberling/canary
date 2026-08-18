@@ -27,6 +27,13 @@ public sealed class SiteBuilder
         var routes = ContentScanner.Scan(contentRoot);
         var behaviorScripts = Widgets.WidgetDiscovery.Discover(siteRoot, runtimeDistDir, "*.js");
 
+        // Auto-create a self-documenting .hooks.json for every content
+        // directory that has markdown directly inside it (derived from the
+        // route list just scanned, not a second filesystem walk) -- same
+        // "drop a file in, discoverable, editable" spirit as .nav.json's
+        // auto-creation, just scoped deeper. See Hooks.HooksOverrideFile.
+        Hooks.HooksOverrideFile.EnsureFilesExist(routes.Select(r => Path.GetDirectoryName(r.SourcePath)!));
+
         // Own step, sequenced right after the manifest build rather than
         // folded into BuildPrerendered's page-rendering loop -- sitemap/
         // robots generation is a distinct concern from rendering pages, it
@@ -60,6 +67,15 @@ public sealed class SiteBuilder
             kv => kv.Key, Markdown.IWidgetRenderer (kv) => new Widgets.TemplateWidgetRenderer(kv.Value));
         var widgetScriptsHtml = BuildWidgetScriptsHtml(behaviorScripts.Keys);
 
+        // One combined hash of every discovered widget file's content,
+        // computed once for the whole build (not per page) -- same
+        // site-wide-not-per-usage simplicity tradeoff already made for
+        // {{widgetScripts}}, rather than scanning each page's markdown to
+        // know exactly which widgets it references. Folded into every
+        // page's checksum below so editing any widget invalidates every
+        // page's cache, fixing the gap tracked in PLAN.md's Known bugs.
+        var widgetChecksumSeed = ComputeWidgetChecksumSeed(widgetTemplates, behaviorScripts);
+
         var pageBuilder = new PageBuilder(new Markdown.MarkdownRenderer(widgets));
 
         var rendered = 0;
@@ -67,7 +83,16 @@ public sealed class SiteBuilder
         foreach (var route in routes)
         {
             var outputPath = Path.Combine(outputRoot, route.OutputRelativePath);
-            var result = pageBuilder.BuildPage(route.SourcePath, outputPath, shellTemplate, config.Site.Name!, widgetScriptsHtml);
+            var routeDir = Path.GetDirectoryName(route.SourcePath)!;
+            var hookNames = Hooks.HooksOverrideFile.ResolveForDirectory(routeDir);
+            var extraChecksumSeed = widgetChecksumSeed + "\0" + Hooks.HookRunner.ChecksumSeed(hookNames, config.Hooks, siteRoot);
+            Func<string, string>? transformSource = hookNames.Count > 0
+                ? source => Hooks.HookRunner.Run(hookNames, config.Hooks, siteRoot, source)
+                : null;
+
+            var result = pageBuilder.BuildPage(
+                route.SourcePath, outputPath, shellTemplate, config.Site.Name!,
+                widgetScriptsHtml, extraChecksumSeed, transformSource);
             if (result.ContentOutcome == ContentRenderOutcome.Rendered) rendered++;
             else reused++;
         }
@@ -106,6 +131,16 @@ public sealed class SiteBuilder
         string.Concat(widgetNames.OrderBy(n => n, StringComparer.Ordinal)
             .Select(n => $"<script src=\"/js/widgets/{n}.js\" defer></script>\n"));
 
+    private static string ComputeWidgetChecksumSeed(Dictionary<string, string> templates, Dictionary<string, string> behaviorScripts)
+    {
+        var sb = new System.Text.StringBuilder();
+        foreach (var path in templates.Values.Concat(behaviorScripts.Values).OrderBy(p => p, StringComparer.Ordinal))
+        {
+            sb.Append(File.ReadAllText(path)).Append('\0');
+        }
+        return sb.ToString();
+    }
+
     private static void CopyWidgetFiles(Dictionary<string, string> files, string destDir)
     {
         foreach (var (name, sourcePath) in files)
@@ -137,7 +172,7 @@ public sealed class SiteBuilder
         {
             var name = Path.GetFileName(file);
             var isMarkdown = file.EndsWith(".md", StringComparison.OrdinalIgnoreCase);
-            if (name == ".nav.json" || isMarkdown) continue;
+            if (name is ".nav.json" or ".hooks.json" || isMarkdown) continue;
 
             var relative = Path.GetRelativePath(contentRoot, file);
             CopyFile(file, Path.Combine(destRoot, relative));
