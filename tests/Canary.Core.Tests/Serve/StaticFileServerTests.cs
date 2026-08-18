@@ -59,6 +59,24 @@ public class StaticFileServerTests : IDisposable
     }
 
     [Fact]
+    public async Task ServedResponses_AreNeverCacheable()
+    {
+        // A local dev server must never let the browser cache a response --
+        // otherwise a real edit + rebuild can look like it silently didn't
+        // take effect, because the browser is still showing a stale
+        // previous fetch of the same URL rather than re-requesting it.
+        File.WriteAllText(Path.Combine(_root, "style.css"), "body { color: red; }");
+        var (server, cts, port) = await StartServerAsync();
+        using (server)
+        using (cts)
+        {
+            var res = await _client.GetAsync($"http://localhost:{port}/style.css");
+            Assert.True(res.Headers.CacheControl?.NoStore);
+            cts.Cancel();
+        }
+    }
+
+    [Fact]
     public async Task DirectoryRequest_ServesIndexHtml()
     {
         Directory.CreateDirectory(Path.Combine(_root, "games"));

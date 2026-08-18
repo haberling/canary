@@ -87,6 +87,12 @@ public sealed class StaticFileServer : IDisposable
 
             var bytes = await File.ReadAllBytesAsync(filePath);
             context.Response.ContentType = ContentTypes.GetValueOrDefault(Path.GetExtension(filePath).ToLowerInvariant(), "application/octet-stream");
+            // A local dev server must never let the browser cache anything --
+            // no headers here at all left caching entirely up to browser
+            // heuristics, and a plain navigation (not a hard refresh) can
+            // silently reuse a stale stylesheet/script from before a build
+            // just ran, making a real fix look like it didn't take effect.
+            context.Response.Headers.Add("Cache-Control", "no-store");
             context.Response.StatusCode = 200;
             await context.Response.OutputStream.WriteAsync(bytes);
             context.Response.Close();

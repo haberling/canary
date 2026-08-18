@@ -23,7 +23,7 @@ public sealed class SiteBuilder
         var outputRoot = Path.Combine(siteRoot, config.Output.Dir);
         Directory.CreateDirectory(outputRoot);
 
-        Manifest.ManifestBuilder.BuildAndWrite(contentRoot);
+        Manifest.ManifestBuilder.BuildAndWrite(contentRoot, config.Nav.Depth);
         var routes = ContentScanner.Scan(contentRoot);
         var behaviorScripts = Widgets.WidgetDiscovery.Discover(siteRoot, runtimeDistDir, "*.js");
         // Widget CSS: discovered and shipped exactly like behavior scripts

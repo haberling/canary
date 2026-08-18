@@ -188,8 +188,13 @@ a.nav-label {
   z-index: 20;
 }
 
-.nav-item.has-dropdown:hover .nav-dropdown,
-.nav-item.has-dropdown:focus-within .nav-dropdown {
+/* ">" not a descendant selector: hovering the top-level item must only
+   reveal ITS OWN immediate dropdown, not every .nav-dropdown nested inside
+   it -- a nested submenu (see .nav-dropdown-nested below) has its own,
+   separately-gated hover rule and would otherwise pop open regardless of
+   whether its own row is actually hovered. */
+.nav-item.has-dropdown:hover > .nav-dropdown,
+.nav-item.has-dropdown:focus-within > .nav-dropdown {
   display: block;
 }
 
@@ -210,6 +215,81 @@ a.nav-label {
 .nav-dropdown a.active {
   color: var(--accent);
   font-weight: 600;
+}
+
+/* nav.depth > 1: a dropdown child that itself has children (see
+   Canary.Core.Config.NavConfig, runtime/ts/nav.ts's renderNavChild) renders
+   as a .nav-subitem with its own nested flyout submenu instead of a plain
+   link -- a depth-1 site never produces any of this markup, so none of it
+   changes how a depth-1 site's nav looks or behaves. */
+.nav-subitem {
+  position: relative;
+}
+
+/* ".nav-dropdown .nav-dropdown-label", not just ".nav-dropdown-label": this
+   element is always inside a .nav-dropdown, and ".nav-dropdown a"'s
+   specificity (0,1,1) beats a bare ".nav-dropdown-label" (0,1,0) -- that
+   rule was silently winning and forcing display:block here regardless of
+   this rule's own `display: flex`, which is the actual reason `gap` never
+   visibly separated the label text from its chevron (a non-flex container
+   has no gap to apply at all). Found by inspecting the live computed
+   style, not by re-guessing at the CSS -- two previous attempts at this
+   same visual fix (justify-content, then a real span instead of ::after)
+   both looked right on paper and neither actually worked, which is
+   specifically why this one was verified against getComputedStyle instead
+   of just eyeballing another screenshot. */
+.nav-dropdown .nav-dropdown-label {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0.9rem;
+  color: var(--text-dim);
+  font-size: 0.9rem;
+  white-space: nowrap;
+  text-decoration: none;
+  cursor: default;
+}
+
+a.nav-dropdown-label {
+  cursor: pointer;
+}
+
+.nav-dropdown-chevron {
+  /* A real element (see runtime/ts/nav.ts), not ::after. The actual,
+     confirmed bug that motivated this (see .nav-dropdown-label above) was
+     a plain CSS specificity fight, not anything about pseudo-elements --
+     a ::after chevron might have worked fine once display:flex was
+     actually winning. Left as a real span anyway since it's already built,
+     confirmed working, and no less clear than a CSS-content icon. */
+  font-size: 0.7rem;
+  opacity: 0.6;
+}
+
+.nav-dropdown-label:hover,
+.nav-subitem:focus-within > .nav-dropdown-label {
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+  text-decoration: none;
+}
+
+.nav-dropdown-label.active {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.nav-dropdown-nested {
+  /* Flies out to the side of its own row rather than below the whole
+     parent dropdown -- top:100%/left:0 (the top-level .nav-dropdown's own
+     positioning) would place it under the entire menu instead of next to
+     the specific row that opened it. */
+  top: -0.4rem;
+  left: 100%;
+  margin-left: 0.25rem;
+}
+
+.nav-subitem.has-subdropdown:hover > .nav-dropdown-nested,
+.nav-subitem.has-subdropdown:focus-within > .nav-dropdown-nested {
+  display: block;
 }
 
 #app {

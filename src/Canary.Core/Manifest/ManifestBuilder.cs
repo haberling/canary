@@ -36,10 +36,15 @@ namespace Canary.Core.Manifest;
 //  - content/<dir>/.nav.json can set allow/deny (mutually exclusive),
 //    priority (int, default 0, lower sorts earlier), and nonav (bool).
 //    "Home" is always pinned first regardless of priority.
-//  - Any top-level content/<dir>/ with at least one .md file gets a
+//  - Any content/<dir>/ (at any depth the nav tree actually reaches) with
+//    at least one .md file or a further-nested subdirectory gets a
 //    self-documenting .nav.json written/backfilled if missing fields.
 //
-// Only recurses one level into content/ subdirectories.
+// Recursion depth is config-driven (see Canary.Core.Config.NavConfig),
+// default 1 to preserve the original one-level behavior above. Note this is
+// purely a NAV MENU concern -- Canary.Core.Build.ContentScanner already
+// finds every route at any depth regardless, so a page beyond nav.depth
+// still builds and has a real URL, it just isn't surfaced in the nav tree.
 public static class ManifestBuilder
 {
     private static readonly JsonSerializerOptions SerializerOptions = new()
@@ -48,22 +53,22 @@ public static class ManifestBuilder
         PropertyNameCaseInsensitive = true,
     };
 
-    public static SiteManifest Build(string contentRoot)
+    public static SiteManifest Build(string contentRoot, int navDepth = 1)
     {
-        var nav = BuildNav(contentRoot);
+        var nav = BuildNav(contentRoot, navDepth);
         return new SiteManifest { Nav = nav };
     }
 
-    public static SiteManifest BuildAndWrite(string contentRoot, string? outputPath = null)
+    public static SiteManifest BuildAndWrite(string contentRoot, int navDepth = 1, string? outputPath = null)
     {
-        var manifest = Build(contentRoot);
+        var manifest = Build(contentRoot, navDepth);
         var path = outputPath ?? Path.Combine(contentRoot, "manifest.json");
         var json = JsonSerializer.Serialize(manifest, SerializerOptions);
         File.WriteAllText(path, json + "\n");
         return manifest;
     }
 
-    private static List<NavItem> BuildNav(string contentRoot)
+    private static List<NavItem> BuildNav(string contentRoot, int navDepth)
     {
         var items = new List<NavItem>();
 
@@ -96,7 +101,7 @@ public static class ManifestBuilder
 
         foreach (var dir in Directory.GetDirectories(contentRoot))
         {
-            var item = BuildDirectoryNavItem(contentRoot, dir);
+            var item = BuildDirectoryNavItem(contentRoot, dir, depth: 1, navDepth);
             if (item != null)
             {
                 rest.Add(item);
@@ -107,12 +112,22 @@ public static class ManifestBuilder
         return items;
     }
 
-    private static NavItem? BuildDirectoryNavItem(string contentRoot, string dir)
+    // depth: how many directory levels below contentRoot this call is at
+    // (1 for a top-level content/<dir>/). navDepth: the configured limit;
+    // <= 0 means unlimited. Recurses into dir's own subdirectories exactly
+    // the same way it handles dir itself -- a nested directory becomes a
+    // nav item with its own landing page/children, added alongside dir's
+    // flat file children, so "Guides" (a subdirectory) and "quickstart.md"
+    // (a file) sort together in one alphabetical (or priority-ordered)
+    // dropdown, the same way top-level items already do.
+    private static NavItem? BuildDirectoryNavItem(string contentRoot, string dir, int depth, int navDepth)
     {
         var dirName = Path.GetFileName(dir);
         var mdFiles = Directory.GetFiles(dir, "*.md", SearchOption.TopDirectoryOnly);
+        var canRecurseDeeper = navDepth <= 0 || depth < navDepth;
+        var subDirs = canRecurseDeeper ? Directory.GetDirectories(dir) : [];
 
-        var config = LoadOrCreateNavOverride(dir, mdFiles.Length > 0);
+        var config = LoadOrCreateNavOverride(dir, mdFiles.Length > 0 || subDirs.Length > 0);
         if (config.NoNav)
         {
             return null;
@@ -126,8 +141,18 @@ public static class ManifestBuilder
 
         var children = allowed
             .Select(f => new NavItem { Title = TitleFromFile(f, Path.GetFileNameWithoutExtension(f)), Path = ToContentPath(contentRoot, f) })
-            .OrderBy(n => n.Title, StringComparer.OrdinalIgnoreCase)
             .ToList();
+
+        foreach (var subDir in subDirs)
+        {
+            var subItem = BuildDirectoryNavItem(contentRoot, subDir, depth + 1, navDepth);
+            if (subItem != null)
+            {
+                children.Add(subItem);
+            }
+        }
+
+        children = children.OrderBy(n => n.Priority).ThenBy(n => n.Title, StringComparer.OrdinalIgnoreCase).ToList();
 
         string title;
         string? path = null;
@@ -158,13 +183,13 @@ public static class ManifestBuilder
         };
     }
 
-    private static NavOverride LoadOrCreateNavOverride(string dir, bool hasMdFiles)
+    private static NavOverride LoadOrCreateNavOverride(string dir, bool hasNavContent)
     {
         var overridePath = Path.Combine(dir, ".nav.json");
 
         if (!File.Exists(overridePath))
         {
-            if (!hasMdFiles) return new NavOverride();
+            if (!hasNavContent) return new NavOverride();
 
             var created = new NavOverride();
             WriteNavOverride(overridePath, created);
