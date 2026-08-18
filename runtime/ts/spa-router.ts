@@ -28,6 +28,26 @@ function navPathFor(file: string): string {
 
 let currentFile = "index";
 
+// `file` might be a leaf page (content/<file>.md) or a directory's own
+// landing page (content/<file>/index.md, per ContentScanner/ManifestBuilder's
+// "index.md is a directory's landing page" convention -- see PLAN.md's
+// Known bugs entry on this). The client has no route manifest saying which
+// paths are directories up front, so this tries the leaf file first and
+// falls back to the directory-landing-page form on a 404 rather than
+// guessing. Root ("index") never needs the fallback -- it's already the
+// exact landing-page file.
+async function fetchMarkdownSource(file: string): Promise<string | null> {
+  const leaf = await fetch(`/content/${file}.md`);
+  if (leaf.ok) return leaf.text();
+
+  if (file !== "index") {
+    const dirLanding = await fetch(`/content/${file}/index.md`);
+    if (dirLanding.ok) return dirLanding.text();
+  }
+
+  return null;
+}
+
 registerRouteHandler(async (route) => {
   const app = document.getElementById("app");
   if (!app) return;
@@ -38,8 +58,8 @@ registerRouteHandler(async (route) => {
   app.innerHTML = "<p>Loading&hellip;</p>";
 
   try {
-    const res = await fetch(`/content/${file}.md`);
-    if (!res.ok) {
+    const source = await fetchMarkdownSource(file);
+    if (source == null) {
       app.innerHTML = `
         <h1>Not found</h1>
         <p>No page at <code>content/${file}.md</code>.</p>
@@ -47,7 +67,6 @@ registerRouteHandler(async (route) => {
       `;
       return;
     }
-    const source = await res.text();
     app.innerHTML = await renderMarkdown(source);
   } catch {
     app.innerHTML = "<h1>Error</h1><p>Could not load this page.</p>";
