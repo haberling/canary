@@ -93,7 +93,7 @@ class Program
 
         RunOneBuild(config, siteRoot, runtimeDistDir, "[build]");
 
-        using var watcher = new SiteWatcher(siteRoot, () => RunOneBuild(config, siteRoot, runtimeDistDir, "[rebuild]"));
+        using var watcher = new SiteWatcher(siteRoot, changedPaths => RunOneBuild(config, siteRoot, runtimeDistDir, "[rebuild]", changedPaths));
         watcher.Start();
 
         using var cts = new CancellationTokenSource();
@@ -156,14 +156,14 @@ class Program
         return 0;
     }
 
-    static bool RunOneBuild(CanaryConfig config, string siteRoot, string? runtimeDistDir, string label)
+    static bool RunOneBuild(CanaryConfig config, string siteRoot, string? runtimeDistDir, string label, IReadOnlySet<string>? changedPaths = null)
     {
         try
         {
-            var summary = new SiteBuilder().Build(config, siteRoot, runtimeDistDir);
+            var summary = new SiteBuilder().Build(config, siteRoot, runtimeDistDir, changedPaths);
             Console.WriteLine($"{label} {summary.TotalRoutes} route(s) -> {summary.OutputRoot}");
-            Console.WriteLine($"  rendered        = {summary.PagesRendered}");
-            Console.WriteLine($"  reused unchanged = {summary.PagesReusedUnchanged}");
+            Console.WriteLine($"  written   = {summary.PagesWritten}");
+            Console.WriteLine($"  unchanged = {summary.PagesUnchanged}");
             return true;
         }
         catch (Exception ex) when (ex is InvalidOperationException or NotSupportedException)

@@ -20,6 +20,9 @@ public class HookRunnerTests : IDisposable
         }
     }
 
+    private HookContext NewContext(string routePath = "games/tesselate", string manifestPath = "manifest.json") =>
+        new(_siteRoot, routePath, Path.Combine(_siteRoot, manifestPath));
+
     // Windows batch script that echoes stdin verbatim (the "findstr ^" idiom
     // -- ^ matches start-of-line, so it matches and re-prints every line)
     // then appends a fixed marker line, so a test can prove both "stdin
@@ -38,7 +41,7 @@ public class HookRunnerTests : IDisposable
         var script = WriteMarkerScript("tools/marker-a.cmd", "MARKER-A");
         var registry = new Dictionary<string, string> { ["marker-a"] = script };
 
-        var result = HookRunner.Run(["marker-a"], registry, _siteRoot, "# Hello");
+        var result = HookRunner.Run(["marker-a"], registry, NewContext(), "# Hello");
 
         Assert.Contains("# Hello", result);
         Assert.Contains("MARKER-A", result);
@@ -51,7 +54,7 @@ public class HookRunnerTests : IDisposable
         var scriptB = WriteMarkerScript("tools/marker-b.cmd", "MARKER-B");
         var registry = new Dictionary<string, string> { ["a"] = scriptA, ["b"] = scriptB };
 
-        var result = HookRunner.Run(["a", "b"], registry, _siteRoot, "SOURCE");
+        var result = HookRunner.Run(["a", "b"], registry, NewContext(), "SOURCE");
 
         var indexA = result.IndexOf("MARKER-A", StringComparison.Ordinal);
         var indexB = result.IndexOf("MARKER-B", StringComparison.Ordinal);
@@ -64,7 +67,7 @@ public class HookRunnerTests : IDisposable
     {
         var registry = new Dictionary<string, string> { ["fail"] = "exit /b 1" };
 
-        var ex = Assert.Throws<InvalidOperationException>(() => HookRunner.Run(["fail"], registry, _siteRoot, "source"));
+        var ex = Assert.Throws<InvalidOperationException>(() => HookRunner.Run(["fail"], registry, NewContext(), "source"));
         Assert.Contains("exit /b 1", ex.Message);
     }
 
@@ -73,51 +76,39 @@ public class HookRunnerTests : IDisposable
     {
         var registry = new Dictionary<string, string>();
 
-        var ex = Assert.Throws<InvalidOperationException>(() => HookRunner.Run(["nonexistent"], registry, _siteRoot, "source"));
+        var ex = Assert.Throws<InvalidOperationException>(() => HookRunner.Run(["nonexistent"], registry, NewContext(), "source"));
         Assert.Contains("nonexistent", ex.Message);
     }
 
     [Fact]
-    public void ChecksumSeed_UnknownHookName_Throws()
+    public void Run_HookCanReadRoutePathAndManifestPathFromEnvironment()
     {
-        var registry = new Dictionary<string, string>();
+        var scriptPath = Path.Combine(_siteRoot, "tools", "env-echo.cmd");
+        File.WriteAllText(scriptPath,
+            $"@echo off{Environment.NewLine}findstr \"^\"{Environment.NewLine}" +
+            $"echo ROUTE=%CANARY_ROUTE_PATH%{Environment.NewLine}" +
+            $"echo MANIFEST=%CANARY_MANIFEST_PATH%{Environment.NewLine}");
+        var registry = new Dictionary<string, string> { ["env-echo"] = "tools/env-echo.cmd" };
+        var manifestPath = Path.Combine(_siteRoot, "content", "manifest.json");
+        var context = new HookContext(_siteRoot, "games/tesselate", manifestPath);
 
-        Assert.Throws<InvalidOperationException>(() => HookRunner.ChecksumSeed(["nonexistent"], registry, _siteRoot));
+        var result = HookRunner.Run(["env-echo"], registry, context, "# Hello");
+
+        Assert.Contains("ROUTE=games/tesselate", result);
+        Assert.Contains($"MANIFEST={manifestPath}", result);
     }
 
     [Fact]
-    public void ChecksumSeed_ChangesWhenReferencedScriptContentChanges()
+    public void Run_HookSeesEmptyRoutePathForSiteRoot()
     {
-        var scriptPath = Path.Combine(_siteRoot, "tools", "hook.cmd");
-        File.WriteAllText(scriptPath, "@echo off\r\nfindstr \"^\"\r\n");
-        var registry = new Dictionary<string, string> { ["h"] = "tools/hook.cmd" };
+        var scriptPath = Path.Combine(_siteRoot, "tools", "env-echo.cmd");
+        File.WriteAllText(scriptPath,
+            $"@echo off{Environment.NewLine}findstr \"^\"{Environment.NewLine}echo ROUTE=[%CANARY_ROUTE_PATH%]{Environment.NewLine}");
+        var registry = new Dictionary<string, string> { ["env-echo"] = "tools/env-echo.cmd" };
+        var context = new HookContext(_siteRoot, "", Path.Combine(_siteRoot, "manifest.json"));
 
-        var before = HookRunner.ChecksumSeed(["h"], registry, _siteRoot);
-        File.WriteAllText(scriptPath, "@echo off\r\nfindstr \"^\"\r\necho CHANGED\r\n");
-        var after = HookRunner.ChecksumSeed(["h"], registry, _siteRoot);
+        var result = HookRunner.Run(["env-echo"], registry, context, "# Home");
 
-        Assert.NotEqual(before, after);
-    }
-
-    [Fact]
-    public void ChecksumSeed_ChangesWhenCommandStringChanges()
-    {
-        var before = HookRunner.ChecksumSeed(["h"], new Dictionary<string, string> { ["h"] = "echo one" }, _siteRoot);
-        var after = HookRunner.ChecksumSeed(["h"], new Dictionary<string, string> { ["h"] = "echo two" }, _siteRoot);
-
-        Assert.NotEqual(before, after);
-    }
-
-    [Fact]
-    public void ChecksumSeed_DoesNotActuallyRunTheHook()
-    {
-        // A command that would fail if executed -- ChecksumSeed must never
-        // invoke it, only look at its registered command string / referenced
-        // file content. Proves the "cheap, no process execution" contract.
-        var registry = new Dictionary<string, string> { ["fail"] = "exit /b 1" };
-
-        var seed = HookRunner.ChecksumSeed(["fail"], registry, _siteRoot);
-
-        Assert.Contains("exit /b 1", seed);
+        Assert.Contains("ROUTE=[]", result);
     }
 }

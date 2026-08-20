@@ -17,12 +17,26 @@ public sealed class SiteBuilder
     // to plain code blocks) -- true embedding into the Canary package
     // itself is still a known, tracked gap, not solved here; this parameter
     // is the honest interim.
-    public BuildSummary Build(CanaryConfig config, string siteRoot, string? runtimeDistDir = null)
+    // changedPaths, when given, comes from SiteWatcher's debounced file-
+    // change accumulation (see Serve.SiteWatcher and Program.cs's serve
+    // command) -- a non-null set means "only these files changed since the
+    // last build, and every one of them was a plain edit to an existing
+    // file" (SiteWatcher itself downgrades anything else -- a create,
+    // delete, rename -- to null before it ever reaches here). null means
+    // "render every route" (a bare `canary build`, serve's initial build,
+    // or any structural change SiteWatcher couldn't safely narrow down).
+    // See PLAN.md's "Incremental builds" section.
+    public BuildSummary Build(CanaryConfig config, string siteRoot, string? runtimeDistDir = null, IReadOnlySet<string>? changedPaths = null)
     {
         var contentRoot = Path.Combine(siteRoot, config.Content.Root!);
         var outputRoot = Path.Combine(siteRoot, config.Output.Dir);
         Directory.CreateDirectory(outputRoot);
 
+        // Site-wide bookkeeping always runs in full, even for a targeted
+        // rebuild -- these are cheap file-list scans and small writes, not
+        // the expensive part, and skipping them would risk the nav tree/
+        // sitemap silently going stale relative to the content that just
+        // changed.
         Manifest.ManifestBuilder.BuildAndWrite(contentRoot, config.Nav.Depth);
         var routes = ContentScanner.Scan(contentRoot);
         var behaviorScripts = Widgets.WidgetDiscovery.Discover(siteRoot, runtimeDistDir, "*.js");
@@ -47,7 +61,8 @@ public sealed class SiteBuilder
         // just happens to need the same route list.
         WriteSeoFiles(config, outputRoot, routes);
 
-        var summary = BuildPrerendered(config, siteRoot, contentRoot, outputRoot, routes, runtimeDistDir, behaviorScripts, styleSheets);
+        var routesToRender = ResolveRoutesToRender(routes, changedPaths);
+        var summary = BuildPrerendered(config, siteRoot, contentRoot, outputRoot, routes, routesToRender, runtimeDistDir, behaviorScripts, styleSheets);
 
         if (runtimeDistDir != null)
         {
@@ -65,8 +80,27 @@ public sealed class SiteBuilder
         return summary;
     }
 
+    // null (render everything) unless every path in changedPaths maps
+    // cleanly onto an existing route's own source file -- a changed path
+    // that isn't any route's SourcePath (a widget/hook-script/theme/
+    // config.json edit, say) means the change could affect more than just
+    // one page, so it falls back to rendering everything rather than
+    // guessing.
+    private static IReadOnlyList<ContentRoute> ResolveRoutesToRender(IReadOnlyList<ContentRoute> routes, IReadOnlySet<string>? changedPaths)
+    {
+        if (changedPaths == null || changedPaths.Count == 0) return routes;
+
+        var normalizedChanged = new HashSet<string>(changedPaths.Select(Path.GetFullPath), StringComparer.OrdinalIgnoreCase);
+        var matched = routes.Where(r => normalizedChanged.Contains(Path.GetFullPath(r.SourcePath))).ToList();
+
+        var matchedSourcePaths = new HashSet<string>(matched.Select(r => Path.GetFullPath(r.SourcePath)), StringComparer.OrdinalIgnoreCase);
+        var everyChangeIsARoute = normalizedChanged.All(matchedSourcePaths.Contains);
+
+        return everyChangeIsARoute ? matched : routes;
+    }
+
     private static BuildSummary BuildPrerendered(
-        CanaryConfig config, string siteRoot, string contentRoot, string outputRoot, IReadOnlyList<ContentRoute> routes,
+        CanaryConfig config, string siteRoot, string contentRoot, string outputRoot, IReadOnlyList<ContentRoute> allRoutes, IReadOnlyList<ContentRoute> routesToRender,
         string? runtimeDistDir, Dictionary<string, string> behaviorScripts, Dictionary<string, string> styleSheets)
     {
         var shellTemplate = LoadShellTemplate(config, siteRoot);
@@ -76,35 +110,32 @@ public sealed class SiteBuilder
         var widgetScriptsHtml = BuildWidgetScriptsHtml(behaviorScripts.Keys);
         var widgetStylesHtml = BuildWidgetStylesHtml(styleSheets.Keys);
 
-        // One combined hash of every discovered widget file's content,
-        // computed once for the whole build (not per page) -- same
-        // site-wide-not-per-usage simplicity tradeoff already made for
-        // {{widgetScripts}}/{{widgetStyles}}, rather than scanning each
-        // page's markdown to know exactly which widgets it references.
-        // Folded into every page's checksum below so editing any widget
-        // (template, behavior, OR style) invalidates every page's cache,
-        // fixing the gap tracked in PLAN.md's Known bugs.
-        var widgetChecksumSeed = ComputeWidgetChecksumSeed(widgetTemplates, behaviorScripts, styleSheets);
-
         var pageBuilder = new PageBuilder(new Markdown.MarkdownRenderer(widgets));
 
-        var rendered = 0;
-        var reused = 0;
-        foreach (var route in routes)
+        // Written by ManifestBuilder.BuildAndWrite above (Build's caller),
+        // so it's already current on disk by the time any hook runs.
+        var manifestPath = Path.Combine(contentRoot, "manifest.json");
+
+        var written = 0;
+        var unchanged = 0;
+        foreach (var route in routesToRender)
         {
             var outputPath = Path.Combine(outputRoot, route.OutputRelativePath);
             var routeDir = Path.GetDirectoryName(route.SourcePath)!;
             var hookNames = Hooks.HooksOverrideFile.ResolveForDirectory(routeDir);
-            var extraChecksumSeed = widgetChecksumSeed + "\0" + Hooks.HookRunner.ChecksumSeed(hookNames, config.Hooks, siteRoot);
+            // Bare nav-tree convention, not ContentScanner's URL-style
+            // RoutePath -- see Hooks.HookContext's doc comment.
+            var navRoutePath = route.RoutePath == "/" ? "" : route.RoutePath;
+            var hookContext = new Hooks.HookContext(siteRoot, navRoutePath, manifestPath);
             Func<string, string>? transformSource = hookNames.Count > 0
-                ? source => Hooks.HookRunner.Run(hookNames, config.Hooks, siteRoot, source)
+                ? source => Hooks.HookRunner.Run(hookNames, config.Hooks, hookContext, source)
                 : null;
 
             var result = pageBuilder.BuildPage(
                 route.SourcePath, outputPath, shellTemplate, config.Site.Name!,
-                widgetScriptsHtml, widgetStylesHtml, extraChecksumSeed, transformSource);
-            if (result.ContentOutcome == ContentRenderOutcome.Rendered) rendered++;
-            else reused++;
+                widgetScriptsHtml, widgetStylesHtml, transformSource);
+            if (result.Outcome == PageWriteOutcome.Written) written++;
+            else unchanged++;
         }
 
         CopyThemeAssets(config, siteRoot, outputRoot);
@@ -112,7 +143,7 @@ public sealed class SiteBuilder
         // the client, there's nothing for the browser to fetch.
         CopyContentAssets(contentRoot, outputRoot);
 
-        return new BuildSummary(routes.Count, rendered, reused, outputRoot);
+        return new BuildSummary(allRoutes.Count, written, unchanged, outputRoot);
     }
 
     private static void WriteSeoFiles(CanaryConfig config, string outputRoot, IReadOnlyList<ContentRoute> routes)
@@ -144,17 +175,6 @@ public sealed class SiteBuilder
     private static string BuildWidgetStylesHtml(IEnumerable<string> widgetNames) =>
         string.Concat(widgetNames.OrderBy(n => n, StringComparer.Ordinal)
             .Select(n => $"<link rel=\"stylesheet\" href=\"/css/widgets/{n}.css\">\n"));
-
-    private static string ComputeWidgetChecksumSeed(
-        Dictionary<string, string> templates, Dictionary<string, string> behaviorScripts, Dictionary<string, string> styleSheets)
-    {
-        var sb = new System.Text.StringBuilder();
-        foreach (var path in templates.Values.Concat(behaviorScripts.Values).Concat(styleSheets.Values).OrderBy(p => p, StringComparer.Ordinal))
-        {
-            sb.Append(File.ReadAllText(path)).Append('\0');
-        }
-        return sb.ToString();
-    }
 
     private static void CopyWidgetFiles(Dictionary<string, string> files, string destDir)
     {

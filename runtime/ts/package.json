@@ -2,7 +2,7 @@
   "name": "canary-runtime",
   "private": true,
   "version": "0.0.0",
-  "description": "Client-side runtime (hash router, markdown renderer, widgets) vendored/compiled into the Canary CLI package. Not published; Node/npm is only needed to develop Canary itself, never to consume it.",
+  "description": "Client-side runtime (real-path router, nav, widgets) vendored/compiled into the Canary CLI package. Not published; Node/npm is only needed to develop Canary itself, never to consume it.",
   "scripts": {
     "build": "tsc && node ../copy-widgets.mjs",
     "watch": "tsc --watch"

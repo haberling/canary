@@ -1,9 +1,18 @@
 namespace Canary.Core.Serve;
 
 // Watches a site's source tree and invokes a debounced callback when
-// something changes. Knows nothing about what the callback does
-// (SiteBuilder, CanaryConfig) -- only "something changed, wait a beat in
-// case more changes are coming, then tell the caller once."
+// something changes, passing along which file(s) changed so the caller can
+// decide whether a targeted rebuild is possible (see SiteBuilder's
+// changedPaths parameter and PLAN.md's "Incremental builds" section).
+//
+// Only a plain edit (FileSystemWatcher's Changed event) to an existing file
+// contributes to that set -- a Created/Deleted/Renamed event anywhere in the
+// same debounce window means something structural happened (a page added or
+// removed, a directory renamed, etc.) that could change more than just one
+// route, so the callback receives null instead ("do a full rebuild") rather
+// than SiteWatcher trying to reason about what a structural change actually
+// affects. Knows nothing about what the callback does (SiteBuilder,
+// CanaryConfig) beyond that.
 //
 // The watcher pauses itself while the callback runs (and for a short grace
 // period after), rather than trying to know which paths a rebuild itself
@@ -18,10 +27,13 @@ public sealed class SiteWatcher : IDisposable
 {
     private readonly FileSystemWatcher _watcher;
     private readonly System.Timers.Timer _debounceTimer;
-    private readonly Action _onChanged;
+    private readonly Action<IReadOnlySet<string>?> _onChanged;
     private readonly TimeSpan _resumeGrace;
+    private readonly object _pendingLock = new();
+    private readonly HashSet<string> _pendingChangedPaths = new(StringComparer.OrdinalIgnoreCase);
+    private bool _pendingForcesFullRebuild;
 
-    public SiteWatcher(string siteRoot, Action onChanged, TimeSpan? debounce = null, TimeSpan? resumeGrace = null)
+    public SiteWatcher(string siteRoot, Action<IReadOnlySet<string>?> onChanged, TimeSpan? debounce = null, TimeSpan? resumeGrace = null)
     {
         _onChanged = onChanged;
         _resumeGrace = resumeGrace ?? TimeSpan.FromMilliseconds(250);
@@ -38,16 +50,34 @@ public sealed class SiteWatcher : IDisposable
             NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.FileName | NotifyFilters.DirectoryName,
         };
 
-        void OnEvent(object sender, FileSystemEventArgs e)
+        void OnChangedEvent(object sender, FileSystemEventArgs e)
         {
-            _debounceTimer.Stop();
-            _debounceTimer.Start();
+            lock (_pendingLock)
+            {
+                _pendingChangedPaths.Add(e.FullPath);
+            }
+            RestartDebounce();
         }
 
-        _watcher.Changed += OnEvent;
-        _watcher.Created += OnEvent;
-        _watcher.Deleted += OnEvent;
-        _watcher.Renamed += OnEvent;
+        void OnStructuralEvent(object sender, FileSystemEventArgs e)
+        {
+            lock (_pendingLock)
+            {
+                _pendingForcesFullRebuild = true;
+            }
+            RestartDebounce();
+        }
+
+        _watcher.Changed += OnChangedEvent;
+        _watcher.Created += OnStructuralEvent;
+        _watcher.Deleted += OnStructuralEvent;
+        _watcher.Renamed += OnStructuralEvent;
+    }
+
+    private void RestartDebounce()
+    {
+        _debounceTimer.Stop();
+        _debounceTimer.Start();
     }
 
     private void RunGuarded()
@@ -55,7 +85,14 @@ public sealed class SiteWatcher : IDisposable
         _watcher.EnableRaisingEvents = false;
         try
         {
-            _onChanged();
+            IReadOnlySet<string>? changedPaths;
+            lock (_pendingLock)
+            {
+                changedPaths = _pendingForcesFullRebuild ? null : new HashSet<string>(_pendingChangedPaths, StringComparer.OrdinalIgnoreCase);
+                _pendingChangedPaths.Clear();
+                _pendingForcesFullRebuild = false;
+            }
+            _onChanged(changedPaths);
         }
         finally
         {

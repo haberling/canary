@@ -1,10 +1,14 @@
-// Populates the top nav from /content/manifest.json. Used by both render
-// modes (static/hybrid) -- pure page-enhancement JS regardless of how
-// content itself gets loaded/routed, per PLAN.md's Render modes section.
+// Populates the top nav from /content/manifest.json, and highlights
+// whichever item matches the current URL. Used by both render modes
+// (static/hybrid) -- pure page-enhancement JS regardless of how content
+// itself gets loaded/routed, per PLAN.md's Render modes section.
 //
-// hrefFor lets each mode decide the link shape: hybrid uses hash links
-// ("#/<path>") for the client router to intercept; static uses real
-// root-relative paths ("/<path>/") since there's no client router.
+// Real root-relative hrefs ("/<path>/") in every mode now -- hybrid's
+// router (router.ts) intercepts clicks on these the same as any other
+// internal link via pushState, no hash indirection needed. The current
+// route is always just window.location.pathname: true in static mode
+// (nothing else exists) and in hybrid mode too, since router.ts keeps
+// location in sync via pushState before any of this ever reads it.
 //
 // Root-relative fetch ("/content/manifest.json", not "content/manifest.json")
 // is required for hybrid/static: those prerender to real nested paths, so a
@@ -26,12 +30,20 @@ function escapeHtml(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
 
+function hrefFor(path: string): string {
+  return path === "" ? "/" : `/${path}/`;
+}
+
+function currentPath(): string {
+  return window.location.pathname.replace(/^\/+|\/+$/g, "");
+}
+
 // A dropdown's children can themselves have children (nav.depth > 1, see
 // Canary.Core.Config.NavConfig) -- rendered as a nested flyout submenu, not
 // flattened away. A child with no children of its own stays a plain <a>,
 // unchanged from before this existed, so a depth-1 site's markup/CSS is
 // identical to what it always was.
-function renderNavChild(item: NavItem, hrefFor: (path: string) => string): string {
+function renderNavChild(item: NavItem): string {
   const hasChildren = !!item.children && item.children.length > 0;
 
   if (!hasChildren) {
@@ -54,12 +66,12 @@ function renderNavChild(item: NavItem, hrefFor: (path: string) => string): strin
   const label = item.path != null
     ? `<a class="nav-dropdown-label" href="${hrefFor(item.path)}" data-path="${escapeHtml(item.path)}">${titleSpan}${chevron}</a>`
     : `<span class="nav-dropdown-label">${titleSpan}${chevron}</span>`;
-  const nested = item.children!.map((child) => renderNavChild(child, hrefFor)).join("");
+  const nested = item.children!.map((child) => renderNavChild(child)).join("");
 
   return `<div class="nav-subitem has-subdropdown"${pathAttr}>${label}<div class="nav-dropdown nav-dropdown-nested">${nested}</div></div>`;
 }
 
-function renderNavItem(item: NavItem, hrefFor: (path: string) => string): string {
+function renderNavItem(item: NavItem): string {
   const pathAttr = item.path != null ? ` data-path="${escapeHtml(item.path)}"` : "";
   const label = item.path != null
     ? `<a class="nav-label" href="${hrefFor(item.path)}" data-path="${escapeHtml(item.path)}">${escapeHtml(item.title)}</a>`
@@ -69,23 +81,18 @@ function renderNavItem(item: NavItem, hrefFor: (path: string) => string): string
     return `<li class="nav-item"${pathAttr}>${label}</li>`;
   }
 
-  const dropdown = item.children.map((child) => renderNavChild(child, hrefFor)).join("");
+  const dropdown = item.children.map((child) => renderNavChild(child)).join("");
 
   return `<li class="nav-item has-dropdown"${pathAttr}>${label}<div class="nav-dropdown">${dropdown}</div></li>`;
 }
 
-// currentPath must match a nav item's own `path` field exactly (e.g. "" for
-// the pinned Home item, "games/Tesselate" for a page) -- callers are
-// responsible for translating their own routing representation into that
-// convention; see hybrid-router.ts's contentFileFor for why that translation
-// is needed there.
 // Walks up from the matched element (whatever depth it's actually at) to
 // the nav root, marking every .nav-item/.nav-subitem ancestor active along
 // the way -- not just the immediate parent. A depth-1 site only ever has
 // one level to walk, so this is behaviorally identical to the old
 // one-level version there; it only matters once nav.depth > 1 puts a real
 // ancestor chain between the matched leaf and the top-level <li>.
-export function updateActiveNav(currentPath: string): void {
+export function updateActiveNav(): void {
   const nav = document.getElementById("site-nav");
   if (!nav) return;
 
@@ -93,8 +100,9 @@ export function updateActiveNav(currentPath: string): void {
     el.classList.remove("active");
   });
 
+  const path = currentPath();
   const matched = Array.from(nav.querySelectorAll<HTMLElement>("[data-path]"))
-    .find((el) => el.dataset.path === currentPath);
+    .find((el) => el.dataset.path === path);
   if (!matched) return;
 
   let el: HTMLElement | null = matched;
@@ -106,13 +114,7 @@ export function updateActiveNav(currentPath: string): void {
   }
 }
 
-// getCurrentPath is a thunk, not a plain string: this fetch resolves
-// asynchronously, racing against whatever route-handling logic the caller
-// also has in flight. Reading the current path lazily (at the moment nav
-// HTML actually exists to highlight) instead of a value snapshotted before
-// routing has even run avoids highlighting a stale/wrong item once both
-// have settled.
-export async function loadNav(hrefFor: (path: string) => string, getCurrentPath: () => string): Promise<void> {
+export async function loadNav(): Promise<void> {
   const nav = document.getElementById("site-nav");
   if (!nav) return;
 
@@ -120,8 +122,8 @@ export async function loadNav(hrefFor: (path: string) => string, getCurrentPath:
     const res = await fetch("/content/manifest.json");
     if (!res.ok) return;
     const manifest = (await res.json()) as Manifest;
-    nav.innerHTML = `<ul class="site-nav-list">${manifest.nav.map((item) => renderNavItem(item, hrefFor)).join("")}</ul>`;
-    updateActiveNav(getCurrentPath());
+    nav.innerHTML = `<ul class="site-nav-list">${manifest.nav.map((item) => renderNavItem(item)).join("")}</ul>`;
+    updateActiveNav();
   } catch {
     // No manifest yet (or offline); leave nav as-is.
   }

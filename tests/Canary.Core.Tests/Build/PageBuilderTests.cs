@@ -6,7 +6,7 @@ namespace Canary.Core.Tests.Build;
 public class PageBuilderTests : IDisposable
 {
     private const string ShellTemplate =
-        "<html><head><title>{{title}}</title>{{checksum}}</head>" +
+        "<html><head><title>{{title}}</title></head>" +
         "<body><header>{{siteName}}</header><main id=\"app\">{{content}}</main></body></html>";
 
     private readonly string _dir;
@@ -29,7 +29,7 @@ public class PageBuilderTests : IDisposable
         new(new MarkdownRenderer(new Dictionary<string, IWidgetRenderer>()));
 
     [Fact]
-    public void BuildPage_FirstBuild_RendersContent()
+    public void BuildPage_FirstBuild_WritesContent()
     {
         var source = Path.Combine(_dir, "page.md");
         var output = Path.Combine(_dir, "out", "index.html");
@@ -37,7 +37,7 @@ public class PageBuilderTests : IDisposable
 
         var result = NewBuilder().BuildPage(source, output, ShellTemplate, "My Site");
 
-        Assert.Equal(ContentRenderOutcome.Rendered, result.ContentOutcome);
+        Assert.Equal(PageWriteOutcome.Written, result.Outcome);
         var html = File.ReadAllText(output);
         Assert.Contains("<h1>Hello</h1>", html);
         Assert.Contains("Body text.", html);
@@ -45,26 +45,7 @@ public class PageBuilderTests : IDisposable
     }
 
     [Fact]
-    public void BuildPage_UnchangedSource_ReusesContentButRestampsChrome()
-    {
-        var source = Path.Combine(_dir, "page.md");
-        var output = Path.Combine(_dir, "out", "index.html");
-        File.WriteAllText(source, "# Hello\nBody text.");
-
-        NewBuilder().BuildPage(source, output, ShellTemplate, "Old Site Name");
-
-        // Chrome inputs change (site name), content source does not.
-        var second = NewBuilder().BuildPage(source, output, ShellTemplate, "New Site Name");
-
-        Assert.Equal(ContentRenderOutcome.ReusedUnchanged, second.ContentOutcome);
-        var html = File.ReadAllText(output);
-        Assert.Contains("New Site Name", html); // chrome was re-stamped
-        Assert.DoesNotContain("Old Site Name", html);
-        Assert.Contains("<h1>Hello</h1>", html); // content fragment still correct
-    }
-
-    [Fact]
-    public void BuildPage_ChangedSource_ReRendersContent()
+    public void BuildPage_ChangedSource_ReRendersAndRewrites()
     {
         var source = Path.Combine(_dir, "page.md");
         var output = Path.Combine(_dir, "out", "index.html");
@@ -74,52 +55,82 @@ public class PageBuilderTests : IDisposable
         File.WriteAllText(source, "# Hello\nChanged body.");
         var result = NewBuilder().BuildPage(source, output, ShellTemplate, "My Site");
 
-        Assert.Equal(ContentRenderOutcome.Rendered, result.ContentOutcome);
+        Assert.Equal(PageWriteOutcome.Written, result.Outcome);
         var html = File.ReadAllText(output);
         Assert.Contains("Changed body.", html);
         Assert.DoesNotContain("Original body.", html);
     }
 
     [Fact]
-    public void BuildPage_EmbedsContentChecksumComment()
+    public void BuildPage_ChromeInputChanges_AlwaysReRenders()
     {
+        // Every build fully re-renders now (no cache) -- a chrome-only
+        // input change (site name) still produces a different file and is
+        // reported as Written, same as a content change would be.
         var source = Path.Combine(_dir, "page.md");
         var output = Path.Combine(_dir, "out", "index.html");
-        File.WriteAllText(source, "# Hello");
+        File.WriteAllText(source, "# Hello\nBody text.");
+
+        NewBuilder().BuildPage(source, output, ShellTemplate, "Old Site Name");
+        var second = NewBuilder().BuildPage(source, output, ShellTemplate, "New Site Name");
+
+        Assert.Equal(PageWriteOutcome.Written, second.Outcome);
+        var html = File.ReadAllText(output);
+        Assert.Contains("New Site Name", html);
+        Assert.DoesNotContain("Old Site Name", html);
+        Assert.Contains("<h1>Hello</h1>", html);
+    }
+
+    [Fact]
+    public void BuildPage_NothingChanged_LeavesFileUntouchedOnDisk()
+    {
+        // The write-only-if-different mechanism that replaced checksum-
+        // gating: since rendering is deterministic, an unchanged page
+        // renders to identical bytes, so the second build must not touch
+        // the file at all -- verified here via mtime, not just content
+        // equality, so a spurious rewrite would actually be caught.
+        var source = Path.Combine(_dir, "page.md");
+        var output = Path.Combine(_dir, "out", "index.html");
+        File.WriteAllText(source, "# Hello\nBody text.");
 
         NewBuilder().BuildPage(source, output, ShellTemplate, "My Site");
+        var beforeWrite = File.GetLastWriteTimeUtc(output);
 
-        Assert.Matches(@"<!-- content-checksum: sha256:[0-9a-f]{64} -->", File.ReadAllText(output));
+        Thread.Sleep(50); // ensure a real filesystem-observable mtime gap if a rewrite did happen
+        var result = NewBuilder().BuildPage(source, output, ShellTemplate, "My Site");
+
+        Assert.Equal(PageWriteOutcome.Unchanged, result.Outcome);
+        Assert.Equal(beforeWrite, File.GetLastWriteTimeUtc(output));
     }
 
     [Fact]
-    public void BuildPage_ChangedExtraChecksumSeed_ReRendersEvenWithUnchangedSource()
+    public void BuildPage_BuildingTwiceInARow_IsIdempotent()
     {
+        // Coverage for the gap left by removing the old cache-hit tests:
+        // building an unchanged site repeatedly must not double-apply a
+        // transformSource (hooks always run against the pristine on-disk
+        // markdown, never against their own prior output), and must
+        // produce byte-identical output both times.
         var source = Path.Combine(_dir, "page.md");
         var output = Path.Combine(_dir, "out", "index.html");
-        File.WriteAllText(source, "# Hello\nBody text.");
+        File.WriteAllText(source, "# Hello\nOriginal body.");
 
-        NewBuilder().BuildPage(source, output, ShellTemplate, "My Site", extraChecksumSeed: "seed-a");
-        var second = NewBuilder().BuildPage(source, output, ShellTemplate, "My Site", extraChecksumSeed: "seed-b");
+        var applyCount = 0;
+        Func<string, string> transform = s => { applyCount++; return s + "\n\nFooter."; };
 
-        Assert.Equal(ContentRenderOutcome.Rendered, second.ContentOutcome);
+        NewBuilder().BuildPage(source, output, ShellTemplate, "My Site", transformSource: transform);
+        var firstHtml = File.ReadAllText(output);
+
+        NewBuilder().BuildPage(source, output, ShellTemplate, "My Site", transformSource: transform);
+        var secondHtml = File.ReadAllText(output);
+
+        Assert.Equal(2, applyCount); // ran fresh both times, never skipped or doubled
+        Assert.Equal(firstHtml, secondHtml);
+        Assert.Single(System.Text.RegularExpressions.Regex.Matches(secondHtml, "Footer\\."));
     }
 
     [Fact]
-    public void BuildPage_UnchangedExtraChecksumSeed_StillReuses()
-    {
-        var source = Path.Combine(_dir, "page.md");
-        var output = Path.Combine(_dir, "out", "index.html");
-        File.WriteAllText(source, "# Hello\nBody text.");
-
-        NewBuilder().BuildPage(source, output, ShellTemplate, "My Site", extraChecksumSeed: "same-seed");
-        var second = NewBuilder().BuildPage(source, output, ShellTemplate, "My Site", extraChecksumSeed: "same-seed");
-
-        Assert.Equal(ContentRenderOutcome.ReusedUnchanged, second.ContentOutcome);
-    }
-
-    [Fact]
-    public void BuildPage_CacheMiss_AppliesTransformSourceBeforeRendering()
+    public void BuildPage_AppliesTransformSourceBeforeRendering()
     {
         var source = Path.Combine(_dir, "page.md");
         var output = Path.Combine(_dir, "out", "index.html");
@@ -129,28 +140,10 @@ public class PageBuilderTests : IDisposable
             source, output, ShellTemplate, "My Site",
             transformSource: s => s.Replace("Original", "Transformed"));
 
-        Assert.Equal(ContentRenderOutcome.Rendered, result.ContentOutcome);
+        Assert.Equal(PageWriteOutcome.Written, result.Outcome);
         var html = File.ReadAllText(output);
         Assert.Contains("Transformed body.", html);
         Assert.DoesNotContain("Original body.", html);
-    }
-
-    [Fact]
-    public void BuildPage_CacheHit_NeverInvokesTransformSource()
-    {
-        var source = Path.Combine(_dir, "page.md");
-        var output = Path.Combine(_dir, "out", "index.html");
-        File.WriteAllText(source, "# Hello\nBody text.");
-
-        NewBuilder().BuildPage(source, output, ShellTemplate, "My Site", extraChecksumSeed: "same");
-
-        var invoked = false;
-        var second = NewBuilder().BuildPage(
-            source, output, ShellTemplate, "My Site", extraChecksumSeed: "same",
-            transformSource: s => { invoked = true; return s; });
-
-        Assert.Equal(ContentRenderOutcome.ReusedUnchanged, second.ContentOutcome);
-        Assert.False(invoked, "transformSource must not run on a cache hit -- that's the whole point of checksum-gating skipping expensive hook work.");
     }
 
     [Fact]

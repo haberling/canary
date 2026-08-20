@@ -1,7 +1,20 @@
 using System.Diagnostics;
-using System.Text;
 
 namespace Canary.Core.Hooks;
+
+// A hook's process context -- grouped into one record rather than three
+// bare string parameters (SiteRoot, RoutePath, ManifestPath are all
+// same-typed) to avoid a transposition footgun in Run/Execute's parameter
+// list as this grows.
+//
+// RoutePath uses the bare nav-tree convention ("" for the site root, e.g.
+// "games/tesselate" for a nested page -- see Canary.Core.Manifest.
+// ManifestBuilder's NavItem.Path and PLAN.md's "Content hooks" section),
+// not ContentScanner's URL-style RoutePath ("/" for root) -- it's what
+// directly matches manifest.json's own "path" fields with zero translation,
+// so a hook comparing its own route against the manifest tree doesn't need
+// to know about the other convention at all.
+public readonly record struct HookContext(string SiteRoot, string RoutePath, string ManifestPath);
 
 // Executes a page's applicable hooks (see HooksOverrideFile) in declared
 // order, chained: one hook's stdout becomes the next one's stdin. A hook is
@@ -15,45 +28,15 @@ namespace Canary.Core.Hooks;
 // this codebase) -- no silently-broken output.
 public static class HookRunner
 {
-    public static string Run(IReadOnlyList<string> hookNames, IReadOnlyDictionary<string, string> registry, string siteRoot, string markdown)
+    public static string Run(IReadOnlyList<string> hookNames, IReadOnlyDictionary<string, string> registry, HookContext context, string markdown)
     {
         var current = markdown;
         foreach (var name in hookNames)
         {
             var command = ResolveCommand(name, registry);
-            current = Execute(command, siteRoot, current);
+            current = Execute(command, context, current);
         }
         return current;
-    }
-
-    // Cheap-to-compute contribution to a page's incremental-build checksum,
-    // WITHOUT actually running any hook -- checksum-gating exists precisely
-    // so an unchanged page can skip re-running expensive work, hooks
-    // included. Covers a hook's own registered command string (so editing
-    // config.json's "hooks" entry invalidates) and, when that command looks
-    // like a path to a real file under the site root, that file's content
-    // too (so editing the referenced script invalidates). A command that
-    // isn't a bare file path (e.g. one with arguments, or a shell builtin)
-    // still invalidates on the command-string/.hooks.json level, just not
-    // on the referenced tool's own internal changes -- Canary has no
-    // reliable way to know which file(s) an arbitrary command line touches,
-    // and isn't going to guess.
-    public static string ChecksumSeed(IReadOnlyList<string> hookNames, IReadOnlyDictionary<string, string> registry, string siteRoot)
-    {
-        var sb = new StringBuilder();
-        foreach (var name in hookNames)
-        {
-            var command = ResolveCommand(name, registry);
-            sb.Append(name).Append('\0').Append(command).Append('\0');
-
-            var candidatePath = Path.Combine(siteRoot, command);
-            if (File.Exists(candidatePath))
-            {
-                sb.Append(File.ReadAllText(candidatePath));
-            }
-            sb.Append('\0');
-        }
-        return sb.ToString();
     }
 
     private static string ResolveCommand(string name, IReadOnlyDictionary<string, string> registry)
@@ -66,19 +49,25 @@ public static class HookRunner
         return command;
     }
 
-    private static string Execute(string command, string siteRoot, string input)
+    private static string Execute(string command, HookContext context, string input)
     {
         var (fileName, arguments) = ShellInvocation(command);
         var psi = new ProcessStartInfo
         {
             FileName = fileName,
             Arguments = arguments,
-            WorkingDirectory = siteRoot,
+            WorkingDirectory = context.SiteRoot,
             RedirectStandardInput = true,
             RedirectStandardOutput = true,
             RedirectStandardError = true,
             UseShellExecute = false,
         };
+        // Lets a hook do mass, programmatic modification across the site --
+        // e.g. "add a breadcrumb to every page under games/" -- by reading
+        // its own position in the nav tree instead of only ever seeing its
+        // own page's markdown. See PLAN.md's "Content hooks" section.
+        psi.Environment["CANARY_ROUTE_PATH"] = context.RoutePath;
+        psi.Environment["CANARY_MANIFEST_PATH"] = context.ManifestPath;
 
         using var process = Process.Start(psi)
             ?? throw new InvalidOperationException($"Failed to start hook command: {command}");

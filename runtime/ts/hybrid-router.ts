@@ -1,75 +1,45 @@
 // Entry point for renderMode "hybrid" (see PLAN.md's Render modes section).
 // Every route already has a prerendered file: cold loads get it straight
 // from the server, no JS required. Once this script has loaded, in-app
-// navigation intercepts the hash change and fetches the TARGET route's own
-// prerendered HTML file, extracting just the #app fragment and splicing it
-// in -- no re-render, no raw markdown ever reaches the client, and cold vs.
-// warm navigation show byte-identical content because it's the same file
-// either way.
+// navigation (via router.ts's pushState-based click interception) fetches
+// the TARGET route's own prerendered HTML file, extracting just the #app
+// fragment and splicing it in -- no re-render, no raw markdown ever reaches
+// the client, and cold vs. warm navigation show byte-identical content
+// because it's the same file either way.
 
 import { registerRouteHandler, start, type Route } from "./router.js";
 import { loadNav, updateActiveNav } from "./nav.js";
 
-function hrefFor(path: string): string {
-  return `#/${path}`;
-}
-
-// "" for the site root, matching the pinned Home nav item's own `path`
-// field (see Canary.Core.Manifest.ManifestBuilder.BuildNav) -- a prerendered
-// URL of "/" falls out of "" directly.
-function contentFileFor(route: Route): string {
-  return route.path === "/" ? "" : route.segments.join("/");
-}
-
-function prerenderedUrlFor(routeFile: string): string {
-  return routeFile === "" ? "/" : `/${routeFile}/`;
-}
-
-// A cold load of a real prerendered URL (e.g. /games/tesselate/, reached
-// directly or via an in-content link -- markdown-authored links resolve to
-// real root-relative hrefs, not hash links, so clicking one is a genuine
-// full page load) has NO hash fragment at all. The router's own route.path
-// would misread that as "/" (site root) regardless of the real URL, since
-// it only ever looks at location.hash -- wrong nav highlighting, even
-// though content is unaffected (the initial-load branch never touches
-// #app). The real pathname is the only reliable signal for "what page did
-// we actually land on," so it seeds currentPath instead.
-function currentPathFromLocation(): string {
-  return window.location.pathname.replace(/^\/+|\/+$/g, "");
+function prerenderedUrlFor(routePath: string): string {
+  return routePath === "" ? "/" : `/${routePath}/`;
 }
 
 let initialLoad = true;
-let currentPath = currentPathFromLocation();
 
-registerRouteHandler(async (route) => {
+registerRouteHandler(async (route: Route) => {
   const app = document.getElementById("app");
   if (!app) return;
 
   // The very first route dispatch is always the cold-load case (start()
-  // calls the handler synchronously, before any user interaction is
-  // possible) -- #app already contains this exact page's prerendered
-  // content, so skip the redundant fetch-and-replace. currentPath is
-  // already correctly seeded from the real pathname above; the hash-derived
-  // route for this same first dispatch is meaningless (see
-  // currentPathFromLocation) and must NOT overwrite it.
+  // calls the handler synchronously, before any click can happen) -- #app
+  // already contains this exact page's prerendered content, so skip the
+  // redundant fetch-and-replace.
   if (initialLoad) {
     initialLoad = false;
     return;
   }
 
-  const file = contentFileFor(route);
-  currentPath = file;
-  updateActiveNav(file);
+  updateActiveNav();
 
   app.innerHTML = "<p>Loading&hellip;</p>";
-  const url = prerenderedUrlFor(file);
+  const url = prerenderedUrlFor(route.path);
   try {
     const res = await fetch(url);
     if (!res.ok) {
       app.innerHTML = `
         <h1>Not found</h1>
         <p>No page at <code>${url}</code>.</p>
-        <p><a href="#/">&larr; back home</a></p>
+        <p><a href="/">&larr; back home</a></p>
       `;
       return;
     }
@@ -81,5 +51,5 @@ registerRouteHandler(async (route) => {
   }
 });
 
-loadNav(hrefFor, () => currentPath);
+loadNav();
 start();

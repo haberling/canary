@@ -75,13 +75,13 @@ public static class ManifestBuilder
         var homeFile = Path.Combine(contentRoot, "index.md");
         if (File.Exists(homeFile))
         {
-            // "" (not "/") to match the same bare-relative-fragment
-            // convention every other nav path uses -- the client renders
-            // href="#/${path}", so "" produces the canonical root hash "#/".
+            // "" (not "/") to match the same convention every other nav
+            // path uses -- the client renders href="/${path}/", so ""
+            // produces the canonical root href "/" (see nav.ts's hrefFor).
             // (ContentScanner's routePath for this same file is "/", a
             // different representation for a different purpose: identifying
-            // the actual generated route/output path, not a client href
-            // fragment. They're intentionally not the same string.)
+            // the actual generated route/output path, not a client nav
+            // path. They're intentionally not the same string.)
             items.Add(new NavItem { Title = "Home", Path = "" });
         }
 

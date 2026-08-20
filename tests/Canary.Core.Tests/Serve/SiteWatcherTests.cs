@@ -30,9 +30,12 @@ public class SiteWatcherTests : IDisposable
         // write re-triggers the watcher, which triggers another rebuild,
         // forever.
         var callCount = 0;
+        var pageMd = Path.Combine(_root, "page.md");
+        File.WriteAllText(pageMd, "# Hello");
+
         using var watcher = new SiteWatcher(
             _root,
-            onChanged: () =>
+            onChanged: _ =>
             {
                 Interlocked.Increment(ref callCount);
                 // Simulates a build writing back into the watched tree
@@ -46,7 +49,7 @@ public class SiteWatcherTests : IDisposable
         watcher.Start();
 
         // One real external change.
-        File.WriteAllText(Path.Combine(_root, "page.md"), "# Hello");
+        File.WriteAllText(pageMd, "# Hello again");
 
         // Long enough for: debounce (50ms) + callback + resume grace (50ms)
         // + however many self-trigger cycles would have happened if the
@@ -54,5 +57,69 @@ public class SiteWatcherTests : IDisposable
         await Task.Delay(1000);
 
         Assert.Equal(1, callCount);
+    }
+
+    [Fact]
+    public async Task Callback_MultipleEditsInOneWindow_ReceivesOneSetWithBothPaths()
+    {
+        var pageA = Path.Combine(_root, "a.md");
+        var pageB = Path.Combine(_root, "b.md");
+        File.WriteAllText(pageA, "# A");
+        File.WriteAllText(pageB, "# B");
+
+        IReadOnlySet<string>? received = null;
+        var callCount = 0;
+        using var watcher = new SiteWatcher(
+            _root,
+            onChanged: changed =>
+            {
+                Interlocked.Increment(ref callCount);
+                received = changed;
+            },
+            debounce: TimeSpan.FromMilliseconds(150),
+            resumeGrace: TimeSpan.FromMilliseconds(50));
+
+        watcher.Start();
+
+        File.WriteAllText(pageA, "# A changed");
+        await Task.Delay(30);
+        File.WriteAllText(pageB, "# B changed");
+
+        await Task.Delay(1000);
+
+        Assert.Equal(1, callCount);
+        Assert.NotNull(received);
+        Assert.Contains(Path.GetFullPath(pageA), received!, StringComparer.OrdinalIgnoreCase);
+        Assert.Contains(Path.GetFullPath(pageB), received!, StringComparer.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task Callback_CreatedFileInSameWindow_ForcesNullChangedPaths()
+    {
+        var pageA = Path.Combine(_root, "a.md");
+        File.WriteAllText(pageA, "# A");
+
+        IReadOnlySet<string>? received = new HashSet<string> { "sentinel-should-be-overwritten" };
+        var callCount = 0;
+        using var watcher = new SiteWatcher(
+            _root,
+            onChanged: changed =>
+            {
+                Interlocked.Increment(ref callCount);
+                received = changed;
+            },
+            debounce: TimeSpan.FromMilliseconds(150),
+            resumeGrace: TimeSpan.FromMilliseconds(50));
+
+        watcher.Start();
+
+        File.WriteAllText(pageA, "# A changed");
+        await Task.Delay(30);
+        File.WriteAllText(Path.Combine(_root, "new-page.md"), "# New");
+
+        await Task.Delay(1000);
+
+        Assert.Equal(1, callCount);
+        Assert.Null(received);
     }
 }

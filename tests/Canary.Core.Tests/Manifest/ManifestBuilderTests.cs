@@ -39,9 +39,9 @@ public class ManifestBuilderTests : IDisposable
         var manifest = ManifestBuilder.Build(_contentRoot);
 
         Assert.Equal("Home", manifest.Nav[0].Title);
-        // "" (not "home"/"index"/"/"): the bare-relative-fragment convention
-        // every nav path uses, producing href="#/" client-side. See the
-        // comment in ManifestBuilder.BuildNav for why this differs from
+        // "" (not "home"/"index"/"/"): the convention every nav path uses,
+        // producing href="/" client-side. See the comment in
+        // ManifestBuilder.BuildNav for why this differs from
         // ContentScanner's "/" for the same file.
         Assert.Equal("", manifest.Nav[0].Path);
     }
