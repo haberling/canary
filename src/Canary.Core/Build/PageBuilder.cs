@@ -10,7 +10,7 @@ public sealed record PageBuildResult(string OutputPath, PageWriteOutcome Outcome
 
 // Builds one prerendered page: markdown -> HTML content, stamped into the
 // shell template. Every call fully renders -- markdown source is always
-// re-read and re-rendered, and transformSource (hooks) always runs; there is
+// re-read and re-rendered, and transformSource (the toolchain) always runs; there is
 // no cache to hit or miss (see PLAN.md's "Incremental builds" section for
 // why checksum-gating was removed in favor of this plus SiteBuilder's
 // targeted single-route rebuilds).
@@ -40,7 +40,7 @@ public sealed class PageBuilder
     //
     // transformSource, if given, is applied to the raw markdown before
     // rendering. The title is always read from the raw, pre-transform
-    // source (hooks are for structural additions like a breadcrumb or
+    // source (toolchain tools are for structural additions like a breadcrumb or
     // footer link, not rewriting a page's own heading).
     public PageBuildResult BuildPage(
         string sourceMarkdownPath, string outputHtmlPath, string shellTemplate, string siteName,

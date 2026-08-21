@@ -108,8 +108,8 @@ public class PageBuilderTests : IDisposable
     {
         // Coverage for the gap left by removing the old cache-hit tests:
         // building an unchanged site repeatedly must not double-apply a
-        // transformSource (hooks always run against the pristine on-disk
-        // markdown, never against their own prior output), and must
+        // transformSource (the toolchain always runs against the pristine
+        // on-disk markdown, never against its own prior output), and must
         // produce byte-identical output both times.
         var source = Path.Combine(_dir, "page.md");
         var output = Path.Combine(_dir, "out", "index.html");

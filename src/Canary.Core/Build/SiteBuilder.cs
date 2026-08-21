@@ -48,12 +48,12 @@ public sealed class SiteBuilder
         // into framework.css, breaking that same-treatment promise).
         var styleSheets = Widgets.WidgetDiscovery.Discover(siteRoot, runtimeDistDir, "*.css");
 
-        // Auto-create a self-documenting .hooks.json for every content
+        // Auto-create a self-documenting .toolchain.json for every content
         // directory that has markdown directly inside it (derived from the
         // route list just scanned, not a second filesystem walk) -- same
         // "drop a file in, discoverable, editable" spirit as .nav.json's
-        // auto-creation, just scoped deeper. See Hooks.HooksOverrideFile.
-        Hooks.HooksOverrideFile.EnsureFilesExist(routes.Select(r => Path.GetDirectoryName(r.SourcePath)!));
+        // auto-creation, just scoped deeper. See Toolchain.ToolchainOverrideFile.
+        Toolchain.ToolchainOverrideFile.EnsureFilesExist(routes.Select(r => Path.GetDirectoryName(r.SourcePath)!));
 
         // Own step, sequenced right after the manifest build rather than
         // folded into BuildPrerendered's page-rendering loop -- sitemap/
@@ -82,7 +82,7 @@ public sealed class SiteBuilder
 
     // null (render everything) unless every path in changedPaths maps
     // cleanly onto an existing route's own source file -- a changed path
-    // that isn't any route's SourcePath (a widget/hook-script/theme/
+    // that isn't any route's SourcePath (a widget/tool-script/theme/
     // config.json edit, say) means the change could affect more than just
     // one page, so it falls back to rendering everything rather than
     // guessing.
@@ -113,7 +113,7 @@ public sealed class SiteBuilder
         var pageBuilder = new PageBuilder(new Markdown.MarkdownRenderer(widgets));
 
         // Written by ManifestBuilder.BuildAndWrite above (Build's caller),
-        // so it's already current on disk by the time any hook runs.
+        // so it's already current on disk by the time any tool runs.
         var manifestPath = Path.Combine(contentRoot, "manifest.json");
 
         var written = 0;
@@ -122,13 +122,13 @@ public sealed class SiteBuilder
         {
             var outputPath = Path.Combine(outputRoot, route.OutputRelativePath);
             var routeDir = Path.GetDirectoryName(route.SourcePath)!;
-            var hookNames = Hooks.HooksOverrideFile.ResolveForDirectory(routeDir);
+            var toolNames = Toolchain.ToolchainOverrideFile.ResolveForDirectory(routeDir);
             // Bare nav-tree convention, not ContentScanner's URL-style
-            // RoutePath -- see Hooks.HookContext's doc comment.
+            // RoutePath -- see Toolchain.ToolchainContext's doc comment.
             var navRoutePath = route.RoutePath == "/" ? "" : route.RoutePath;
-            var hookContext = new Hooks.HookContext(siteRoot, navRoutePath, manifestPath);
-            Func<string, string>? transformSource = hookNames.Count > 0
-                ? source => Hooks.HookRunner.Run(hookNames, config.Hooks, hookContext, source)
+            var toolchainContext = new Toolchain.ToolchainContext(siteRoot, navRoutePath, manifestPath);
+            Func<string, string>? transformSource = toolNames.Count > 0
+                ? source => Toolchain.ToolchainRunner.Run(toolNames, config.Tools, toolchainContext, source)
                 : null;
 
             var result = pageBuilder.BuildPage(
@@ -207,7 +207,7 @@ public sealed class SiteBuilder
         {
             var name = Path.GetFileName(file);
             var isMarkdown = file.EndsWith(".md", StringComparison.OrdinalIgnoreCase);
-            if (name is ".nav.json" or ".hooks.json" || isMarkdown) continue;
+            if (name is ".nav.json" || name == Toolchain.ToolchainOverrideFile.FileName || isMarkdown) continue;
 
             var relative = Path.GetRelativePath(contentRoot, file);
             CopyFile(file, Path.Combine(destRoot, relative));

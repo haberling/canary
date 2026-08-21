@@ -1,0 +1,16 @@
+{
+  "site": { "name": "The Pirates of Penzance", "baseUrl": "https://example.com" },
+  "content": { "root": "content" },
+  "output": { "dir": "docs" },
+  "renderMode": "hybrid",
+  "nav": { "depth": 2 },
+  "theme": {
+    "shell": "shell.html",
+    "base": "css/framework.css",
+    "theme": "css/theme.css"
+  },
+  "tools": {
+    "reading-time": "powershell -NoProfile -ExecutionPolicy Bypass -File tools/reading-time.ps1",
+    "curtain": "dotnet run tools/curtain.cs"
+  }
+}

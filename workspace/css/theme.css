@@ -1,0 +1,21 @@
+/*
+ * "The Pirates of Penzance" theme layer -- overrides templates/default/css/
+ * framework.css's tokens and the two rules it leaves generic on purpose
+ * (.site-title, .site-logo). See PLAN.md's CSS framework/theme split notes.
+ */
+
+:root {
+  --bg: #0f1b2d;
+  --bg-elevated: #16273d;
+  --text: #ede3cf;
+  --text-dim: #a89f8a;
+  --accent: #c9a227;
+  --border: #2a3c52;
+}
+
+.site-title {
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 2.25rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}

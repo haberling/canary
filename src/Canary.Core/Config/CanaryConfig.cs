@@ -11,7 +11,7 @@ public sealed class CanaryConfig
     public NavConfig Nav { get; set; } = new();
 
     // name -> shell command. Definition only -- application (which pages a
-    // hook runs on) lives per-directory in .hooks.json, not here. See
-    // PLAN.md's "Content hooks" section.
-    public Dictionary<string, string> Hooks { get; set; } = new();
+    // tool runs on) lives per-directory in .toolchain.json, not here. See
+    // PLAN.md's "Content toolchain" section.
+    public Dictionary<string, string> Tools { get; set; } = new();
 }

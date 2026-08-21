@@ -3,13 +3,13 @@ using Canary.Core.Config;
 
 namespace Canary.Core.Tests.Build;
 
-public class SiteBuilderHooksTests : IDisposable
+public class SiteBuilderToolchainTests : IDisposable
 {
     private readonly string _siteRoot;
 
-    public SiteBuilderHooksTests()
+    public SiteBuilderToolchainTests()
     {
-        _siteRoot = Path.Combine(Path.GetTempPath(), "canary-hooks-tests-" + Guid.NewGuid());
+        _siteRoot = Path.Combine(Path.GetTempPath(), "canary-toolchain-tests-" + Guid.NewGuid());
         Directory.CreateDirectory(Path.Combine(_siteRoot, "content"));
         Directory.CreateDirectory(Path.Combine(_siteRoot, "tools"));
         File.WriteAllText(Path.Combine(_siteRoot, "shell.html"), "<html><body><main id=\"app\">{{content}}</main></body></html>");
@@ -23,31 +23,31 @@ public class SiteBuilderHooksTests : IDisposable
         }
     }
 
-    private CanaryConfig NewConfig(Dictionary<string, string>? hooks = null) => new()
+    private CanaryConfig NewConfig(Dictionary<string, string>? tools = null) => new()
     {
         Site = new SiteConfig { Name = "Test Site", BaseUrl = "https://example.com" },
         Content = new ContentConfig { Root = "content" },
         Output = new OutputConfig { Dir = "docs" },
         RenderMode = RenderMode.Hybrid,
         Theme = new ThemeConfig { Shell = "shell.html" },
-        Hooks = hooks ?? new Dictionary<string, string>(),
+        Tools = tools ?? new Dictionary<string, string>(),
     };
 
     // Windows batch script that passes markdown through unchanged then
-    // appends a marker paragraph -- same idiom as HookRunnerTests, just
+    // appends a marker paragraph -- same idiom as ToolchainRunnerTests, just
     // exercised here through the real SiteBuilder pipeline instead of
-    // HookRunner directly.
-    private void WriteMarkerHook(string relativePath, string marker)
+    // ToolchainRunner directly.
+    private void WriteMarkerTool(string relativePath, string marker)
     {
         File.WriteAllText(Path.Combine(_siteRoot, relativePath),
             $"@echo off{Environment.NewLine}findstr \"^\"{Environment.NewLine}echo.{Environment.NewLine}echo {marker}{Environment.NewLine}");
     }
 
     [Fact]
-    public void Build_HookOnNestedRoute_SeesBareRoutePathAndRealManifestPath()
+    public void Build_ToolOnNestedRoute_SeesBareRoutePathAndRealManifestPath()
     {
         // Exercises the actual "mass modification based on nav position"
-        // use case CANARY_ROUTE_PATH/CANARY_MANIFEST_PATH exist for: a hook
+        // use case CANARY_ROUTE_PATH/CANARY_MANIFEST_PATH exist for: a tool
         // applied to a page two directories deep must see that page's own
         // bare nav-tree route (not ContentScanner's URL-style RoutePath),
         // and a manifest path that's real, on disk, and current -- not a
@@ -58,7 +58,7 @@ public class SiteBuilderHooksTests : IDisposable
             $"echo ROUTE=%CANARY_ROUTE_PATH%{Environment.NewLine}" +
             $"echo MANIFEST=%CANARY_MANIFEST_PATH%{Environment.NewLine}");
         Directory.CreateDirectory(Path.Combine(_siteRoot, "content", "games"));
-        File.WriteAllText(Path.Combine(_siteRoot, "content", "games", ".hooks.json"), """{ "hooks": ["env-echo"] }""");
+        File.WriteAllText(Path.Combine(_siteRoot, "content", "games", ".toolchain.json"), """{ "tools": ["env-echo"] }""");
         File.WriteAllText(Path.Combine(_siteRoot, "content", "games", "tesselate.md"), "# Tesselate\nBody.");
 
         new SiteBuilder().Build(NewConfig(new Dictionary<string, string> { ["env-echo"] = "tools/env-echo.cmd" }), _siteRoot);
@@ -68,15 +68,15 @@ public class SiteBuilderHooksTests : IDisposable
 
         var expectedManifestPath = Path.Combine(_siteRoot, "content", "manifest.json");
         Assert.Contains($"MANIFEST={expectedManifestPath}", html);
-        Assert.True(File.Exists(expectedManifestPath), "the manifest path a hook receives must point at a real, already-written file.");
+        Assert.True(File.Exists(expectedManifestPath), "the manifest path a tool receives must point at a real, already-written file.");
         Assert.Contains("\"games/tesselate\"", File.ReadAllText(expectedManifestPath));
     }
 
     [Fact]
-    public void Build_HookDeclaredInHooksJson_TransformsThePage()
+    public void Build_ToolDeclaredInToolchainJson_TransformsThePage()
     {
-        WriteMarkerHook("tools/breadcrumb.cmd", "BREADCRUMB");
-        File.WriteAllText(Path.Combine(_siteRoot, "content", ".hooks.json"), """{ "hooks": ["breadcrumb"] }""");
+        WriteMarkerTool("tools/breadcrumb.cmd", "BREADCRUMB");
+        File.WriteAllText(Path.Combine(_siteRoot, "content", ".toolchain.json"), """{ "tools": ["breadcrumb"] }""");
         File.WriteAllText(Path.Combine(_siteRoot, "content", "index.md"), "# Home\nBody text.");
 
         new SiteBuilder().Build(NewConfig(new Dictionary<string, string> { ["breadcrumb"] = "tools/breadcrumb.cmd" }), _siteRoot);
@@ -87,7 +87,7 @@ public class SiteBuilderHooksTests : IDisposable
     }
 
     [Fact]
-    public void Build_AutoCreatesHooksJson_ForEveryContentDirectoryAtAnyDepth()
+    public void Build_AutoCreatesToolchainJson_ForEveryContentDirectoryAtAnyDepth()
     {
         Directory.CreateDirectory(Path.Combine(_siteRoot, "content", "blog"));
         File.WriteAllText(Path.Combine(_siteRoot, "content", "index.md"), "# Home");
@@ -95,16 +95,16 @@ public class SiteBuilderHooksTests : IDisposable
 
         new SiteBuilder().Build(NewConfig(), _siteRoot);
 
-        Assert.True(File.Exists(Path.Combine(_siteRoot, "content", ".hooks.json")));
-        Assert.True(File.Exists(Path.Combine(_siteRoot, "content", "blog", ".hooks.json")));
+        Assert.True(File.Exists(Path.Combine(_siteRoot, "content", ".toolchain.json")));
+        Assert.True(File.Exists(Path.Combine(_siteRoot, "content", "blog", ".toolchain.json")));
     }
 
     [Fact]
-    public void Build_HooksDoNotCascadeToSubdirectoryWithoutItsOwnDeclaration()
+    public void Build_ToolsDoNotCascadeToSubdirectoryWithoutItsOwnDeclaration()
     {
-        WriteMarkerHook("tools/breadcrumb.cmd", "BREADCRUMB");
+        WriteMarkerTool("tools/breadcrumb.cmd", "BREADCRUMB");
         Directory.CreateDirectory(Path.Combine(_siteRoot, "content", "blog"));
-        File.WriteAllText(Path.Combine(_siteRoot, "content", ".hooks.json"), """{ "hooks": ["breadcrumb"] }""");
+        File.WriteAllText(Path.Combine(_siteRoot, "content", ".toolchain.json"), """{ "tools": ["breadcrumb"] }""");
         File.WriteAllText(Path.Combine(_siteRoot, "content", "index.md"), "# Home\nRoot page.");
         // Not named index.md -- ContentScanner maps this to blog/post/index.html,
         // not blog/index.html (only a directory's own index.md collapses onto
@@ -120,11 +120,11 @@ public class SiteBuilderHooksTests : IDisposable
     }
 
     [Fact]
-    public void Build_MultipleHooks_ChainInDeclaredOrder()
+    public void Build_MultipleTools_ChainInDeclaredOrder()
     {
-        WriteMarkerHook("tools/a.cmd", "MARKER-A");
-        WriteMarkerHook("tools/b.cmd", "MARKER-B");
-        File.WriteAllText(Path.Combine(_siteRoot, "content", ".hooks.json"), """{ "hooks": ["a", "b"] }""");
+        WriteMarkerTool("tools/a.cmd", "MARKER-A");
+        WriteMarkerTool("tools/b.cmd", "MARKER-B");
+        File.WriteAllText(Path.Combine(_siteRoot, "content", ".toolchain.json"), """{ "tools": ["a", "b"] }""");
         File.WriteAllText(Path.Combine(_siteRoot, "content", "index.md"), "# Home");
 
         new SiteBuilder().Build(NewConfig(new Dictionary<string, string> { ["a"] = "tools/a.cmd", ["b"] = "tools/b.cmd" }), _siteRoot);
@@ -134,9 +134,9 @@ public class SiteBuilderHooksTests : IDisposable
     }
 
     [Fact]
-    public void Build_UnknownHookNameInHooksJson_FailsTheWholeBuild()
+    public void Build_UnknownToolNameInToolchainJson_FailsTheWholeBuild()
     {
-        File.WriteAllText(Path.Combine(_siteRoot, "content", ".hooks.json"), """{ "hooks": ["nonexistent"] }""");
+        File.WriteAllText(Path.Combine(_siteRoot, "content", ".toolchain.json"), """{ "tools": ["nonexistent"] }""");
         File.WriteAllText(Path.Combine(_siteRoot, "content", "index.md"), "# Home");
 
         Assert.Throws<InvalidOperationException>(() => new SiteBuilder().Build(NewConfig(), _siteRoot));
@@ -144,7 +144,7 @@ public class SiteBuilderHooksTests : IDisposable
 
     // Every build always fully re-renders now (no cache to invalidate --
     // see PLAN.md's "Incremental builds" section) -- these prove editing a
-    // widget or a hook script is actually picked up by the next build, not
+    // widget or a tool script is actually picked up by the next build, not
     // that a cache was correctly invalidated.
 
     [Fact]
@@ -190,18 +190,18 @@ public class SiteBuilderHooksTests : IDisposable
     }
 
     [Fact]
-    public void Build_EditingHookScript_ChangesNextBuildsOutput()
+    public void Build_EditingToolScript_ChangesNextBuildsOutput()
     {
-        WriteMarkerHook("tools/breadcrumb.cmd", "MARKER-V1");
-        File.WriteAllText(Path.Combine(_siteRoot, "content", ".hooks.json"), """{ "hooks": ["breadcrumb"] }""");
+        WriteMarkerTool("tools/breadcrumb.cmd", "MARKER-V1");
+        File.WriteAllText(Path.Combine(_siteRoot, "content", ".toolchain.json"), """{ "tools": ["breadcrumb"] }""");
         File.WriteAllText(Path.Combine(_siteRoot, "content", "index.md"), "# Home\nBody.");
-        var hooks = new Dictionary<string, string> { ["breadcrumb"] = "tools/breadcrumb.cmd" };
+        var tools = new Dictionary<string, string> { ["breadcrumb"] = "tools/breadcrumb.cmd" };
 
-        new SiteBuilder().Build(NewConfig(hooks), _siteRoot);
+        new SiteBuilder().Build(NewConfig(tools), _siteRoot);
         Assert.Contains("MARKER-V1", File.ReadAllText(Path.Combine(_siteRoot, "docs", "index.html")));
 
-        WriteMarkerHook("tools/breadcrumb.cmd", "MARKER-V2");
-        var summary = new SiteBuilder().Build(NewConfig(hooks), _siteRoot);
+        WriteMarkerTool("tools/breadcrumb.cmd", "MARKER-V2");
+        var summary = new SiteBuilder().Build(NewConfig(tools), _siteRoot);
 
         Assert.Equal(1, summary.PagesWritten);
         Assert.Contains("MARKER-V2", File.ReadAllText(Path.Combine(_siteRoot, "docs", "index.html")));

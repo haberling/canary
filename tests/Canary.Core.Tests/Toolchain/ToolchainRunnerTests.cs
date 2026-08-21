@@ -1,14 +1,14 @@
-using Canary.Core.Hooks;
+using Canary.Core.Toolchain;
 
-namespace Canary.Core.Tests.Hooks;
+namespace Canary.Core.Tests.Toolchain;
 
-public class HookRunnerTests : IDisposable
+public class ToolchainRunnerTests : IDisposable
 {
     private readonly string _siteRoot;
 
-    public HookRunnerTests()
+    public ToolchainRunnerTests()
     {
-        _siteRoot = Path.Combine(Path.GetTempPath(), "canary-hookrunner-tests-" + Guid.NewGuid());
+        _siteRoot = Path.Combine(Path.GetTempPath(), "canary-toolchainrunner-tests-" + Guid.NewGuid());
         Directory.CreateDirectory(Path.Combine(_siteRoot, "tools"));
     }
 
@@ -20,7 +20,7 @@ public class HookRunnerTests : IDisposable
         }
     }
 
-    private HookContext NewContext(string routePath = "games/tesselate", string manifestPath = "manifest.json") =>
+    private ToolchainContext NewContext(string routePath = "games/tesselate", string manifestPath = "manifest.json") =>
         new(_siteRoot, routePath, Path.Combine(_siteRoot, manifestPath));
 
     // Windows batch script that echoes stdin verbatim (the "findstr ^" idiom
@@ -36,30 +36,30 @@ public class HookRunnerTests : IDisposable
     }
 
     [Fact]
-    public void Run_SingleHook_TransformsMarkdown()
+    public void Run_SingleTool_TransformsMarkdown()
     {
         var script = WriteMarkerScript("tools/marker-a.cmd", "MARKER-A");
         var registry = new Dictionary<string, string> { ["marker-a"] = script };
 
-        var result = HookRunner.Run(["marker-a"], registry, NewContext(), "# Hello");
+        var result = ToolchainRunner.Run(["marker-a"], registry, NewContext(), "# Hello");
 
         Assert.Contains("# Hello", result);
         Assert.Contains("MARKER-A", result);
     }
 
     [Fact]
-    public void Run_MultipleHooks_ChainsInDeclaredOrder()
+    public void Run_MultipleTools_ChainsInDeclaredOrder()
     {
         var scriptA = WriteMarkerScript("tools/marker-a.cmd", "MARKER-A");
         var scriptB = WriteMarkerScript("tools/marker-b.cmd", "MARKER-B");
         var registry = new Dictionary<string, string> { ["a"] = scriptA, ["b"] = scriptB };
 
-        var result = HookRunner.Run(["a", "b"], registry, NewContext(), "SOURCE");
+        var result = ToolchainRunner.Run(["a", "b"], registry, NewContext(), "SOURCE");
 
         var indexA = result.IndexOf("MARKER-A", StringComparison.Ordinal);
         var indexB = result.IndexOf("MARKER-B", StringComparison.Ordinal);
         Assert.True(indexA >= 0 && indexB >= 0 && indexA < indexB,
-            "MARKER-A (from the first hook) must appear before MARKER-B (from the second) -- proves each hook's stdout became the next hook's stdin, in declared order.");
+            "MARKER-A (from the first tool) must appear before MARKER-B (from the second) -- proves each tool's stdout became the next tool's stdin, in declared order.");
     }
 
     [Fact]
@@ -67,21 +67,21 @@ public class HookRunnerTests : IDisposable
     {
         var registry = new Dictionary<string, string> { ["fail"] = "exit /b 1" };
 
-        var ex = Assert.Throws<InvalidOperationException>(() => HookRunner.Run(["fail"], registry, NewContext(), "source"));
+        var ex = Assert.Throws<InvalidOperationException>(() => ToolchainRunner.Run(["fail"], registry, NewContext(), "source"));
         Assert.Contains("exit /b 1", ex.Message);
     }
 
     [Fact]
-    public void Run_UnknownHookName_Throws()
+    public void Run_UnknownToolName_Throws()
     {
         var registry = new Dictionary<string, string>();
 
-        var ex = Assert.Throws<InvalidOperationException>(() => HookRunner.Run(["nonexistent"], registry, NewContext(), "source"));
+        var ex = Assert.Throws<InvalidOperationException>(() => ToolchainRunner.Run(["nonexistent"], registry, NewContext(), "source"));
         Assert.Contains("nonexistent", ex.Message);
     }
 
     [Fact]
-    public void Run_HookCanReadRoutePathAndManifestPathFromEnvironment()
+    public void Run_ToolCanReadRoutePathAndManifestPathFromEnvironment()
     {
         var scriptPath = Path.Combine(_siteRoot, "tools", "env-echo.cmd");
         File.WriteAllText(scriptPath,
@@ -90,24 +90,24 @@ public class HookRunnerTests : IDisposable
             $"echo MANIFEST=%CANARY_MANIFEST_PATH%{Environment.NewLine}");
         var registry = new Dictionary<string, string> { ["env-echo"] = "tools/env-echo.cmd" };
         var manifestPath = Path.Combine(_siteRoot, "content", "manifest.json");
-        var context = new HookContext(_siteRoot, "games/tesselate", manifestPath);
+        var context = new ToolchainContext(_siteRoot, "games/tesselate", manifestPath);
 
-        var result = HookRunner.Run(["env-echo"], registry, context, "# Hello");
+        var result = ToolchainRunner.Run(["env-echo"], registry, context, "# Hello");
 
         Assert.Contains("ROUTE=games/tesselate", result);
         Assert.Contains($"MANIFEST={manifestPath}", result);
     }
 
     [Fact]
-    public void Run_HookSeesEmptyRoutePathForSiteRoot()
+    public void Run_ToolSeesEmptyRoutePathForSiteRoot()
     {
         var scriptPath = Path.Combine(_siteRoot, "tools", "env-echo.cmd");
         File.WriteAllText(scriptPath,
             $"@echo off{Environment.NewLine}findstr \"^\"{Environment.NewLine}echo ROUTE=[%CANARY_ROUTE_PATH%]{Environment.NewLine}");
         var registry = new Dictionary<string, string> { ["env-echo"] = "tools/env-echo.cmd" };
-        var context = new HookContext(_siteRoot, "", Path.Combine(_siteRoot, "manifest.json"));
+        var context = new ToolchainContext(_siteRoot, "", Path.Combine(_siteRoot, "manifest.json"));
 
-        var result = HookRunner.Run(["env-echo"], registry, context, "# Home");
+        var result = ToolchainRunner.Run(["env-echo"], registry, context, "# Home");
 
         Assert.Contains("ROUTE=[]", result);
     }
