@@ -15,10 +15,6 @@
   --border: #2a2c33;
 }
 
-.site-title::before {
-  content: "🐤";
-}
-
 /* Fenced code blocks (```...```) and config/CLI examples -- framework.css
    deliberately ships no pre/code styling of its own (it's a content/theme
    concern, not shell layout), so a docs-heavy site provides it here. */

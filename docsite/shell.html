@@ -14,6 +14,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{{title}}</title>
+  {{favicon}}
   <link rel="stylesheet" href="/css/framework.css">
   <link rel="stylesheet" href="/css/theme.css">
   {{widgetStyles}}
@@ -21,7 +22,7 @@
 <body>
   <header class="site-header">
     <div class="site-header-top">
-      <a class="site-title" href="/">{{siteName}}</a>
+      <a class="site-title" href="/">{{logoImg}}{{siteName}}</a>
     </div>
     <nav id="site-nav" class="site-nav">
       <!-- populated client-side from /content/manifest.json via loadNav() -->

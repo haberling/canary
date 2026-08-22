@@ -109,6 +109,8 @@ public sealed class SiteBuilder
             kv => kv.Key, Markdown.IWidgetRenderer (kv) => new Widgets.TemplateWidgetRenderer(kv.Value));
         var widgetScriptsHtml = BuildWidgetScriptsHtml(behaviorScripts.Keys);
         var widgetStylesHtml = BuildWidgetStylesHtml(styleSheets.Keys);
+        var logoImgHtml = BuildLogoImgHtml(config.Theme.Logo);
+        var faviconHtml = BuildFaviconHtml(config.Theme.Favicon);
 
         var pageBuilder = new PageBuilder(new Markdown.MarkdownRenderer(widgets));
 
@@ -133,7 +135,7 @@ public sealed class SiteBuilder
 
             var result = pageBuilder.BuildPage(
                 route.SourcePath, outputPath, shellTemplate, config.Site.Name!,
-                widgetScriptsHtml, widgetStylesHtml, transformSource);
+                widgetScriptsHtml, widgetStylesHtml, transformSource, logoImgHtml, faviconHtml);
             if (result.Outcome == PageWriteOutcome.Written) written++;
             else unchanged++;
         }
@@ -195,6 +197,41 @@ public sealed class SiteBuilder
         {
             CopyFile(Path.Combine(siteRoot, config.Theme.Theme), Path.Combine(outputRoot, "css", "theme.css"));
         }
+
+        // Extension preserved from the source file (svg/png/...) rather than
+        // forced to one format -- CopyThemeAssets doesn't transcode, same as
+        // it doesn't for framework.css/theme.css above.
+        if (!string.IsNullOrWhiteSpace(config.Theme.Logo))
+        {
+            var ext = Path.GetExtension(config.Theme.Logo);
+            CopyFile(Path.Combine(siteRoot, config.Theme.Logo), Path.Combine(outputRoot, "img", $"logo{ext}"));
+        }
+
+        if (!string.IsNullOrWhiteSpace(config.Theme.Favicon))
+        {
+            var ext = Path.GetExtension(config.Theme.Favicon);
+            CopyFile(Path.Combine(siteRoot, config.Theme.Favicon), Path.Combine(outputRoot, $"favicon{ext}"));
+        }
+    }
+
+    private static string BuildLogoImgHtml(string? logoPath) =>
+        string.IsNullOrWhiteSpace(logoPath)
+            ? ""
+            : $"<img class=\"site-logo\" src=\"/img/logo{Path.GetExtension(logoPath)}\" alt=\"\">";
+
+    private static string BuildFaviconHtml(string? faviconPath)
+    {
+        if (string.IsNullOrWhiteSpace(faviconPath)) return "";
+
+        var ext = Path.GetExtension(faviconPath).ToLowerInvariant();
+        var mimeType = ext switch
+        {
+            ".svg" => "image/svg+xml",
+            ".png" => "image/png",
+            ".ico" => "image/x-icon",
+            _ => "image/x-icon",
+        };
+        return $"<link rel=\"icon\" type=\"{mimeType}\" href=\"/favicon{ext}\">";
     }
 
     // Mirrors consoland's deploy.cs CopyContent. Markdown source is never
