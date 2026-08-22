@@ -1,0 +1,54 @@
+<!--
+  Canary default shell template. Stamped onto every generated page (see
+  PLAN.md's "Chrome is unconditionally re-stamped every build" decision).
+  Placeholder contract is documented in Canary.Core.Build.PageBuilder, not
+  here -- deliberately: writing the literal placeholder syntax in this
+  comment would make the build's own string-replace match it too.
+
+  Nav stays populated client-side from /content/manifest.json (loadNav(), see
+  PLAN.md) -- this template doesn't render nav markup itself.
+-->
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Render Modes — Canary</title>
+  <link rel="stylesheet" href="/css/framework.css">
+  <link rel="stylesheet" href="/css/theme.css">
+  <link rel="stylesheet" href="/css/widgets/code.css">
+<link rel="stylesheet" href="/css/widgets/downloads.css">
+<link rel="stylesheet" href="/css/widgets/slideshow.css">
+
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-header-top">
+      <a class="site-title" href="/">Canary</a>
+    </div>
+    <nav id="site-nav" class="site-nav">
+      <!-- populated client-side from /content/manifest.json via loadNav() -->
+    </nav>
+  </header>
+
+  <main id="app"><h1>Render Modes</h1>
+<p><code>renderMode</code> in <code>canary.json</code> is <code>hybrid</code> or <code>static</code>. Both modes prerender every route to real static HTML at build time — markdown is never shipped to or parsed by the browser in either one. What differs is <strong>how in-app navigation happens</strong> once a page has loaded, not how much JavaScript runs (nav population and widgets run as page-enhancement JS either way).</p>
+<h2><code>hybrid</code></h2>
+<p>A real prerendered HTML file exists per route, so a cold load — a crawler, a direct link, a social-preview scraper — gets full content immediately, no JS required. Once JS has loaded, clicking an internal link is intercepted by the client router: it fetches the target route's own prerendered HTML file, extracts the <code>&lt;main id="app"&gt;</code> fragment, and splices it into the current page. No full reload, and critically, no re-rendering — it's the exact same bytes a cold load would have gotten, just spliced in instead of navigated to. Navigation is keyed off the real URL path via the History API (<code>pushState</code>/<code>popstate</code>), so back/forward and copy-paste-the-URL both work normally.</p>
+<p>This is the mode you want for a public site where both crawlability and snappy in-app navigation matter.</p>
+<h2><code>static</code></h2>
+<p>The same prerendered HTML files as <code>hybrid</code>, but no router/content-swap layer at all. Every internal link is a real <code>&lt;a href="/games/tesselate/"&gt;</code>, and every navigation is a full page load handled by the browser. Nav and widgets still run as page-enhancement JS — this mode isn't "no JS," it's "no client-side routing."</p>
+<p>Simpler, and the right choice if you don't need warm in-app navigation to feel instant, or want to minimize what runs in the browser at all.</p>
+<h2>Picking one</h2>
+<p>Default to <code>hybrid</code> unless you have a specific reason not to — it's a strict superset of <code>static</code>'s crawlability story with a nicer navigation experience layered on top, at the cost of a small router. If that router is unwanted complexity for your site (very few pages, or navigation speed genuinely doesn't matter), <code>static</code> is a legitimate, simpler choice, not a lesser one.</p></main>
+
+  <footer class="site-footer">
+    <span>Built with Canary.</span>
+  </footer>
+
+  <script type="module" src="/js/main.js"></script>
+  <script src="/js/widgets/downloads.js" defer></script>
+<script src="/js/widgets/slideshow.js" defer></script>
+
+</body>
+</html>

@@ -1,0 +1,153 @@
+/*
+ * Styling for the slideshow widget (see slideshow.html/.js). Lives beside
+ * its template/behavior siblings, discovered and linked the same way --
+ * see Canary.Core.Widgets.WidgetDiscovery and SiteBuilder's {{widgetStyles}}
+ * placeholder. Relies on the color tokens framework.css defines on :root
+ * (--bg, --bg-elevated, --text-dim, --border, --accent); those cascade
+ * globally once defined, regardless of which stylesheet file references
+ * them, so this file doesn't need to redefine or import them.
+ */
+
+.slideshow-widget {
+  border: 1px solid var(--border);
+  background: var(--bg-elevated);
+  border-radius: 8px;
+  padding: 1rem;
+  margin: 1.5rem 0;
+}
+
+.slideshow-widget:focus {
+  outline: none;
+}
+
+.slideshow-widget:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+.slideshow-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.slideshow-widget h3 {
+  margin: 0;
+}
+
+.slideshow-toggle {
+  flex-shrink: 0;
+  margin-left: auto;
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  border: 1px solid var(--accent);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--accent);
+  font-size: 0.85rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.slideshow-toggle:hover {
+  background: var(--accent);
+  color: var(--bg);
+}
+
+.slideshow-viewport {
+  position: relative;
+  overflow: hidden;
+  border-radius: 6px;
+  background: var(--bg);
+}
+
+.slideshow-track {
+  display: flex;
+  transition: transform 0.3s ease;
+}
+
+.slideshow-slide {
+  flex: 0 0 100%;
+  min-width: 0;
+  margin: 0;
+}
+
+.slideshow-slide img {
+  display: block;
+  width: 100%;
+  max-height: 480px;
+  object-fit: contain;
+  background: var(--bg);
+}
+
+.slideshow-caption {
+  padding: 0.5rem 0.75rem;
+  color: var(--text-dim);
+  font-size: 0.85rem;
+  text-align: center;
+}
+
+.slideshow-nav {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  width: 2.25rem;
+  height: 2.25rem;
+  background: color-mix(in srgb, var(--bg) 65%, transparent);
+  color: var(--text);
+  font: inherit;
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.slideshow-nav:hover {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--bg);
+}
+
+.slideshow-prev {
+  left: 0.6rem;
+}
+
+.slideshow-next {
+  right: 0.6rem;
+}
+
+.slideshow-footer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+}
+
+.slideshow-dots {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.slideshow-dot {
+  width: 0.55rem;
+  height: 0.55rem;
+  padding: 0;
+  border: 1px solid var(--accent);
+  border-radius: 999px;
+  background: transparent;
+  cursor: pointer;
+}
+
+.slideshow-dot.active {
+  background: var(--accent);
+}
+
+.slideshow-counter {
+  color: var(--text-dim);
+  font-size: 0.85rem;
+}

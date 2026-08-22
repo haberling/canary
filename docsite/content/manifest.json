@@ -1,0 +1,77 @@
+{
+  "nav": [
+    {
+      "title": "Home",
+      "path": "",
+      "children": null
+    },
+    {
+      "title": "Getting Started",
+      "path": "getting-started",
+      "children": [
+        {
+          "title": "Project Layout",
+          "path": "getting-started/project-layout",
+          "children": null
+        }
+      ]
+    },
+    {
+      "title": "Guide",
+      "path": "guide",
+      "children": [
+        {
+          "title": "Content Toolchain",
+          "path": "guide/toolchain",
+          "children": null
+        },
+        {
+          "title": "Incremental Builds",
+          "path": "guide/incremental-builds",
+          "children": null
+        },
+        {
+          "title": "Publishing",
+          "path": "guide/publishing",
+          "children": null
+        },
+        {
+          "title": "Render Modes",
+          "path": "guide/render-modes",
+          "children": null
+        },
+        {
+          "title": "Why Canary",
+          "path": "guide/why-canary",
+          "children": null
+        },
+        {
+          "title": "Widgets",
+          "path": "guide/widgets",
+          "children": null
+        }
+      ]
+    },
+    {
+      "title": "Reference",
+      "path": "reference",
+      "children": [
+        {
+          "title": "canary.json",
+          "path": "reference/config",
+          "children": null
+        },
+        {
+          "title": "CLI",
+          "path": "reference/cli",
+          "children": null
+        },
+        {
+          "title": "FAQ",
+          "path": "reference/faq",
+          "children": null
+        }
+      ]
+    }
+  ]
+}

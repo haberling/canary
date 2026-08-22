@@ -1,0 +1,60 @@
+/*
+ * Theme for Canary's own documentation site (docsite/) -- loads after
+ * css/framework.css, same layering every Canary site uses. Canary-yellow
+ * accent instead of framework.css's generic blue; the rest of the palette
+ * stays close to the default dark scheme so this reads as "a themed Canary
+ * site" rather than a one-off departure from what canary init scaffolds.
+ */
+
+:root {
+  --bg: #15161a;
+  --bg-elevated: #1c1e23;
+  --text: #e9e9eb;
+  --text-dim: #9a9ea5;
+  --accent: #f0c419;
+  --border: #2a2c33;
+}
+
+.site-title::before {
+  content: "🐤";
+}
+
+/* Fenced code blocks (```...```) and config/CLI examples -- framework.css
+   deliberately ships no pre/code styling of its own (it's a content/theme
+   concern, not shell layout), so a docs-heavy site provides it here. */
+#app pre {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 1rem;
+  overflow-x: auto;
+}
+
+#app pre code {
+  background: none;
+  padding: 0;
+  border: none;
+}
+
+#app code {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 0.1em 0.4em;
+  font-size: 0.9em;
+}
+
+#app h2 {
+  margin-top: 2.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border);
+}
+
+#app ul,
+#app ol {
+  padding-left: 1.4rem;
+}
+
+#app li {
+  margin: 0.35rem 0;
+}

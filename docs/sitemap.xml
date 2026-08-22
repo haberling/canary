@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url><loc>https://example.com/</loc></url>
+  <url><loc>https://example.com/getting-started/</loc></url>
+  <url><loc>https://example.com/getting-started/project-layout/</loc></url>
+  <url><loc>https://example.com/guide/</loc></url>
+  <url><loc>https://example.com/guide/incremental-builds/</loc></url>
+  <url><loc>https://example.com/guide/publishing/</loc></url>
+  <url><loc>https://example.com/guide/render-modes/</loc></url>
+  <url><loc>https://example.com/guide/toolchain/</loc></url>
+  <url><loc>https://example.com/guide/why-canary/</loc></url>
+  <url><loc>https://example.com/guide/widgets/</loc></url>
+  <url><loc>https://example.com/reference/</loc></url>
+  <url><loc>https://example.com/reference/cli/</loc></url>
+  <url><loc>https://example.com/reference/config/</loc></url>
+  <url><loc>https://example.com/reference/faq/</loc></url>
+</urlset>

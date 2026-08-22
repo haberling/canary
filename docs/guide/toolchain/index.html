@@ -1,0 +1,65 @@
+<!--
+  Canary default shell template. Stamped onto every generated page (see
+  PLAN.md's "Chrome is unconditionally re-stamped every build" decision).
+  Placeholder contract is documented in Canary.Core.Build.PageBuilder, not
+  here -- deliberately: writing the literal placeholder syntax in this
+  comment would make the build's own string-replace match it too.
+
+  Nav stays populated client-side from /content/manifest.json (loadNav(), see
+  PLAN.md) -- this template doesn't render nav markup itself.
+-->
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Content Toolchain — Canary</title>
+  <link rel="stylesheet" href="/css/framework.css">
+  <link rel="stylesheet" href="/css/theme.css">
+  <link rel="stylesheet" href="/css/widgets/code.css">
+<link rel="stylesheet" href="/css/widgets/downloads.css">
+<link rel="stylesheet" href="/css/widgets/slideshow.css">
+
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-header-top">
+      <a class="site-title" href="/">Canary</a>
+    </div>
+    <nav id="site-nav" class="site-nav">
+      <!-- populated client-side from /content/manifest.json via loadNav() -->
+    </nav>
+  </header>
+
+  <main id="app"><h1>Content Toolchain</h1>
+<p>The problem this solves: functionality that should apply to <em>many</em> pages — a breadcrumb at the top, a "reading time" estimate, a "return to blog" link — without copy-pasting a widget block into every markdown file, and without mixing site behavior into content data. A <strong>tool</strong> is an external command that receives a page's raw markdown on stdin and returns transformed markdown on stdout, run once per page at build time, before that markdown reaches the renderer.</p>
+<p>Tools only ever run at build time, never in the browser — a tool is an arbitrary external command, and there's no browser equivalent for that. Every page is always fully re-rendered on every build anyway (see <a href="/incremental-builds">Incremental Builds</a>), so there's no separate "did the tool's output change" cache to keep in sync.</p>
+<h2>Two separate pieces</h2>
+<p><strong>Definition</strong> — a <code>tools</code> map in <code>canary.json</code> (name to shell command), one central registry:</p>
+<pre><code>"tools": {
+  "breadcrumb": "tools/breadcrumb.sh",
+  "reading-time": "tools/reading-time.ps1"
+}</code></pre>
+<p><strong>Application</strong> — a <code>.toolchain.json</code> file in each content directory that wants tools applied, listing which registered tool names run there, in order:</p>
+<pre><code>{ "tools": ["breadcrumb", "reading-time"] }</code></pre>
+<p>Canary auto-creates an empty, self-documenting <code>.toolchain.json</code> in every content directory that has at least one <code>.md</code> file directly inside it (at any depth), if one doesn't already exist — so the file to edit is always there, you just have to add names to it.</p>
+<p><strong>There is no cascading.</strong> A directory's tool list is exactly what its own <code>.toolchain.json</code> says — nothing is inherited from a parent directory. A page's behavior should be visible from where the page actually lives, not depend on something declared three directories up. The tradeoff is real repetition if you want a tool applied broadly (re-declaring it in every directory that wants it), accepted deliberately.</p>
+<h2>Execution</h2>
+<p>A page's applicable tools run in their declared array order, chained — one tool's stdout becomes the next tool's stdin, and the final result is what the markdown renderer sees. A tool that exits non-zero fails the whole build; there's no silent partial-output fallback.</p>
+<h2>Environment variables</h2>
+<p>Every tool's process gets two:</p>
+<ul><li><code>CANARY_ROUTE_PATH</code> — the current page's own nav-tree path (<code>""</code> for the site root, <code>"games/tesselate"</code> for a nested page), matching <code>manifest.json</code>'s own path strings exactly.</li><li><code>CANARY_MANIFEST_PATH</code> — the absolute path to the site's already-generated <code>manifest.json</code>, so a tool can consult the full nav tree (for something like "add a note to every page under <code>games/</code>") rather than only ever seeing its own page's markdown in isolation.</li></ul>
+<h2>Writing a script</h2>
+<p>A tool can be any executable command — the example scaffolded by <code>canary init</code> (<code>tools/example.cs</code>, run via <code>dotnet run tools/example.cs</code>) is a working, do-nothing passthrough: it reads stdin, writes it back to stdout unchanged, and writes the two environment variables above to stderr just to demonstrate they're there. Copy or rename it as a real starting point.</p>
+<p><strong>Always give a local script command an explicit path</strong> (<code>tools/foo.cmd</code>, not a bare <code>foo.cmd</code>) — a bare filename with no path separator can silently fail to resolve on Windows machines with the <code>NoDefaultCurrentDirectoryInExePath</code> security setting enabled. Every tool command Canary itself ships already follows this rule.</p></main>
+
+  <footer class="site-footer">
+    <span>Built with Canary.</span>
+  </footer>
+
+  <script type="module" src="/js/main.js"></script>
+  <script src="/js/widgets/downloads.js" defer></script>
+<script src="/js/widgets/slideshow.js" defer></script>
+
+</body>
+</html>

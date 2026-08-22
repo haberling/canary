@@ -1,0 +1,70 @@
+<!--
+  Canary default shell template. Stamped onto every generated page (see
+  PLAN.md's "Chrome is unconditionally re-stamped every build" decision).
+  Placeholder contract is documented in Canary.Core.Build.PageBuilder, not
+  here -- deliberately: writing the literal placeholder syntax in this
+  comment would make the build's own string-replace match it too.
+
+  Nav stays populated client-side from /content/manifest.json (loadNav(), see
+  PLAN.md) -- this template doesn't render nav markup itself.
+-->
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Getting Started — Canary</title>
+  <link rel="stylesheet" href="/css/framework.css">
+  <link rel="stylesheet" href="/css/theme.css">
+  <link rel="stylesheet" href="/css/widgets/code.css">
+<link rel="stylesheet" href="/css/widgets/downloads.css">
+<link rel="stylesheet" href="/css/widgets/slideshow.css">
+
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-header-top">
+      <a class="site-title" href="/">Canary</a>
+    </div>
+    <nav id="site-nav" class="site-nav">
+      <!-- populated client-side from /content/manifest.json via loadNav() -->
+    </nav>
+  </header>
+
+  <main id="app"><h1>Getting Started</h1>
+<p>Canary is pre-alpha and run from source — there's no published package yet (see <a href="/../guide/why-canary">Why Canary</a> and the repo's <code>PLAN.md</code> for the eventual winget-based plan). You'll need a checkout of the <a href="https://github.com/haberling/canary">Canary repo</a> and the .NET 10 SDK.</p>
+<h2>1. Scaffold a project</h2>
+<p>From a checkout, run <code>canary init</code> against an empty (or new) directory:</p>
+<pre><code>dotnet run --project src/Canary -- init my-site</code></pre>
+<p>With no <code>--config</code> flag, <code>init</code> prompts you interactively, one field at a time, showing each default in brackets — press Enter to accept it:</p>
+<pre><code>Site name:
+Base URL:
+Render mode (hybrid/static) [hybrid]:
+Content root [content]:
+Output dir [docs]:
+Nav depth [1]:
+Serve port [6742]:
+Copy default widgets into widgets/ on init? [Y/n]:
+Prefer Canary's built-in widgets over local copies? [y/N]:</code></pre>
+<p>Site name and Base URL are the only two required fields — everything else has a sensible default. The serve port default is randomly generated per run (in <code>[6500, 7000)</code>) specifically so two projects scaffolded close together don't collide the moment both are served at once.</p>
+<p><code>init</code> refuses to touch a directory that already has a <code>canary.json</code> in it, unless you pass <code>--force</code>. See <a href="/project-layout">Project Layout</a> for exactly what gets written.</p>
+<h2>2. Serve it locally</h2>
+<pre><code>dotnet run --project src/Canary -- serve --config my-site/canary.json</code></pre>
+<p>This builds once, starts a local dev server (<code>http://localhost:&lt;port&gt;/</code>, the port from step 1 or <code>canary.json</code>'s <code>serve.port</code>, overridable with <code>--port</code>), and watches for changes. Editing a page's own markdown triggers a fast, targeted rebuild of just that page; anything else (a new/deleted page, a widget, a theme file) falls back to a full rebuild.</p>
+<h2>3. Make an edit</h2>
+<p>Open <code>my-site/content/index.md</code> in an editor and change something — the running <code>serve</code> picks it up automatically. Add more <code>.md</code> files alongside it for more pages; a new top-level directory under <code>content/</code> becomes a nav dropdown automatically.</p>
+<h2>4. Build for real, and publish</h2>
+<pre><code>dotnet run --project src/Canary -- build --config my-site/canary.json</code></pre>
+<p>writes the finished static site to <code>output.dir</code> (<code>docs/</code> by default — GitHub Pages' "serve from <code>/docs</code> on <code>main</code>" convention). For a git-served host, committing and pushing that folder <em>is</em> the deploy step. If you'd rather Canary run that step for you, see <a href="/../guide/publishing">Publishing</a>.</p>
+<p><strong>Next:</strong> <a href="/project-layout">Project Layout</a> for what <code>init</code> scaffolds, or <a href="/../reference/config">Reference → canary.json</a> for every config field.</p></main>
+
+  <footer class="site-footer">
+    <span>Built with Canary.</span>
+  </footer>
+
+  <script type="module" src="/js/main.js"></script>
+  <script src="/js/widgets/downloads.js" defer></script>
+<script src="/js/widgets/slideshow.js" defer></script>
+
+</body>
+</html>

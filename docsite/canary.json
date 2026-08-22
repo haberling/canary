@@ -1,0 +1,12 @@
+{
+  "site": { "name": "Canary", "baseUrl": "https://example.com" },
+  "content": { "root": "content" },
+  "output": { "dir": "../docs" },
+  "renderMode": "hybrid",
+  "nav": { "depth": 1 },
+  "theme": {
+    "shell": "shell.html",
+    "base": "css/framework.css",
+    "theme": "css/theme.css"
+  }
+}

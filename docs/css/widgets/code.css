@@ -1,0 +1,33 @@
+/*
+ * Styling for the "code" widget (verbatim escaped code display) -- see
+ * code.html. Uses the same --bg-elevated/--border/--text-dim tokens
+ * framework.css defines on :root, same as every other built-in widget's CSS
+ * -- a site's own theme.css still wins on anything it overrides directly.
+ */
+
+.code-widget {
+  margin: 1rem 0;
+}
+
+.code-widget-lang {
+  font-size: 0.75rem;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 0.3rem;
+}
+
+.code-widget pre {
+  margin: 0;
+  padding: 1rem;
+  overflow-x: auto;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.code-widget code {
+  background: none;
+  border: none;
+  padding: 0;
+}

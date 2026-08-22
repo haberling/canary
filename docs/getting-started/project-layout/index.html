@@ -1,0 +1,48 @@
+<!--
+  Canary default shell template. Stamped onto every generated page (see
+  PLAN.md's "Chrome is unconditionally re-stamped every build" decision).
+  Placeholder contract is documented in Canary.Core.Build.PageBuilder, not
+  here -- deliberately: writing the literal placeholder syntax in this
+  comment would make the build's own string-replace match it too.
+
+  Nav stays populated client-side from /content/manifest.json (loadNav(), see
+  PLAN.md) -- this template doesn't render nav markup itself.
+-->
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Project Layout — Canary</title>
+  <link rel="stylesheet" href="/css/framework.css">
+  <link rel="stylesheet" href="/css/theme.css">
+  <link rel="stylesheet" href="/css/widgets/code.css">
+<link rel="stylesheet" href="/css/widgets/downloads.css">
+<link rel="stylesheet" href="/css/widgets/slideshow.css">
+
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-header-top">
+      <a class="site-title" href="/">Canary</a>
+    </div>
+    <nav id="site-nav" class="site-nav">
+      <!-- populated client-side from /content/manifest.json via loadNav() -->
+    </nav>
+  </header>
+
+  <main id="app"><h1>Project Layout</h1>
+<p>What <code>canary init</code> writes into a fresh project, and why each piece exists.</p>
+<ul><li><strong><code>canary.json</code></strong> — the project's config. See <a href="/../reference/config">Reference → canary.json</a> for every field. Gets an <code>"initialized": true</code> marker so a later <code>init</code> run against the same directory knows to refuse (unless you pass <code>--force</code>).</li><li><strong><code>shell.html</code></strong> — the page chrome (<code>&lt;head&gt;</code>, header/nav, <code>&lt;main id="app"&gt;</code>, footer) every generated page is stamped into. Copied from Canary's own generic starter — edit it to change the site's structure, not just its colors.</li><li><strong><code>css/framework.css</code></strong> — generic layout only (header, nav dropdown, footer, <code>#app</code>). Not meant to need per-site edits; brand decisions live in <code>theme.css</code> instead, as CSS custom properties (<code>--bg</code>, <code>--accent</code>, etc.) framework.css already reads.</li><li><strong><code>css/theme.css</code></strong> — your actual branding: colors, and (if you want a different logo/title treatment) the <code>.site-logo</code>/<code>.site-title</code> rules. Starts as a copy of framework.css's own default values, so it's immediately usable, not an empty file.</li><li><strong><code>tools/example.cs</code></strong> — a working, do-nothing content-toolchain tool (echoes stdin to stdout unchanged) registered in <code>canary.json</code>'s <code>tools</code> map but not applied anywhere yet. Copy or rename it as a starting point once you want a real one — see <a href="/../guide/toolchain">Guide → Content Toolchain</a>.</li><li><strong><code>content/index.md</code></strong> — your home page. This is the one file <code>init</code> never overwrites, even with <code>--force</code> — it's real content, not framework scaffold.</li><li><strong><code>widgets/</code></strong> — if <code>copyDefaultsOnInit</code> was left on (the default), editable local copies of the built-in <code>downloads</code> and <code>slideshow</code> widgets. Site-authored widgets win over built-in ones on a name collision, so these become the active versions immediately. See <a href="/../guide/widgets">Guide → Widgets</a>.</li></ul>
+<p>Everything except <code>content/index.md</code> is overwritten on every <code>init</code> run against the same directory (with <code>--force</code>), by design — these files are meant to track Canary's current defaults, not freeze at whatever version you first scaffolded against.</p></main>
+
+  <footer class="site-footer">
+    <span>Built with Canary.</span>
+  </footer>
+
+  <script type="module" src="/js/main.js"></script>
+  <script src="/js/widgets/downloads.js" defer></script>
+<script src="/js/widgets/slideshow.js" defer></script>
+
+</body>
+</html>

@@ -1,0 +1,61 @@
+<!--
+  Canary default shell template. Stamped onto every generated page (see
+  PLAN.md's "Chrome is unconditionally re-stamped every build" decision).
+  Placeholder contract is documented in Canary.Core.Build.PageBuilder, not
+  here -- deliberately: writing the literal placeholder syntax in this
+  comment would make the build's own string-replace match it too.
+
+  Nav stays populated client-side from /content/manifest.json (loadNav(), see
+  PLAN.md) -- this template doesn't render nav markup itself.
+-->
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>CLI — Canary</title>
+  <link rel="stylesheet" href="/css/framework.css">
+  <link rel="stylesheet" href="/css/theme.css">
+  <link rel="stylesheet" href="/css/widgets/code.css">
+<link rel="stylesheet" href="/css/widgets/downloads.css">
+<link rel="stylesheet" href="/css/widgets/slideshow.css">
+
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-header-top">
+      <a class="site-title" href="/">Canary</a>
+    </div>
+    <nav id="site-nav" class="site-nav">
+      <!-- populated client-side from /content/manifest.json via loadNav() -->
+    </nav>
+  </header>
+
+  <main id="app"><h1>CLI</h1>
+<p>Run from a checkout as <code>dotnet run --project src/Canary -- &lt;command&gt; [args]</code>. Every command except <code>init</code> and <code>docs</code> takes <code>--config &lt;path&gt;</code> (default <code>canary.json</code> in the current directory) to point at a specific site.</p>
+<h2><code>canary init [path] [--config &lt;path&gt;] [--force]</code></h2>
+<p>Scaffold a new site into <code>path</code> (default <code>.</code>). With no <code>--config</code>, prompts interactively for each field, showing its default. With <code>--config &lt;path&gt;</code>, pulls core values (site name, base URL, render mode, content root, output dir, nav depth, widgets flags) from that existing <code>canary.json</code> instead — theme paths, the tools registry, and the serve port are always the fresh scaffold's own, never copied from the source. Refuses to touch a directory that already has a <code>canary.json</code>, regardless of whether it looks like a Canary project or not, unless <code>--force</code> is passed.</p>
+<h2><code>canary build [--config &lt;path&gt;]</code></h2>
+<p>Full build: manifest generation, chrome re-stamp, content render for every page, sitemap/robots generation, all written to <code>output.dir</code>. See <a href="/../guide/incremental-builds">Incremental Builds</a> for what "every page, every time" actually costs (not much — the expensive part, the disk write, is conditional).</p>
+<h2><code>canary serve [--config &lt;path&gt;] [--port &lt;n&gt;]</code></h2>
+<p>Local dev server. Builds once, then watches for changes and rebuilds (a targeted single-page rebuild for a plain markdown edit, a full rebuild otherwise). Binds to <code>--port</code> if given, otherwise <code>canary.json</code>'s <code>serve.port</code>. Does not re-read <code>canary.json</code> if you edit it mid-session — restart the server to pick up config changes.</p>
+<h2><code>canary publish [--config &lt;path&gt;]</code></h2>
+<p>Builds, then runs <code>canary.json</code>'s <code>publish</code> command, streaming its output live. Fails with a clear message if <code>publish</code> isn't configured. See <a href="/../guide/publishing">Publishing</a>.</p>
+<h2><code>canary docs [--force]</code></h2>
+<p>Opens this documentation in your default browser, served locally on a random unused port in <code>[9000, 9999]</code>. No <code>--config</code> — it's Canary's own bundled docs, not a site you own. Resolved the same way <code>templates/default</code>/<code>runtime/dist</code> are (a walk up from the running <code>canary</code> binary's own location), so it works from any full checkout without a separate build step, as long as <code>docs/</code> has already been built at least once (<code>canary build --config docsite/canary.json</code>).</p>
+<p>Only one instance runs at a time: starting it writes a small lock file (process id + port) to your <code>ApplicationData</code> folder; running <code>canary docs</code> again while that process is still alive just prints <code>docs already open at http://localhost:&lt;port&gt;/</code> and exits, rather than opening a second one on a second port. Pass <code>--force</code> to close the existing one first (a plain process kill, best-effort — "try to close," not guaranteed) and start fresh; if the previous process is already gone (a crash, not a clean exit), the next <code>canary docs</code> cleans up the stale lock on its own and starts normally, no <code>--force</code> needed for that case.</p>
+<h2><code>canary widgets [--config &lt;path&gt;]</code></h2>
+<p>Lists every widget name Canary can currently find for the site at <code>--config</code> (built-in plus site-authored under <code>widgets/</code>).</p>
+<h2><code>canary widget &lt;name&gt; [--config &lt;path&gt;]</code></h2>
+<p>Prints that widget's ready-to-paste usage example. See <a href="/../guide/widgets">Widgets</a>.</p></main>
+
+  <footer class="site-footer">
+    <span>Built with Canary.</span>
+  </footer>
+
+  <script type="module" src="/js/main.js"></script>
+  <script src="/js/widgets/downloads.js" defer></script>
+<script src="/js/widgets/slideshow.js" defer></script>
+
+</body>
+</html>

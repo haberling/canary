@@ -1,0 +1,94 @@
+/*
+ * Styling for the downloads widget (see downloads.html/.js). Lives beside
+ * its template/behavior siblings, discovered and linked the same way --
+ * see Canary.Core.Widgets.WidgetDiscovery and SiteBuilder's {{widgetStyles}}
+ * placeholder. Relies on the color tokens framework.css defines on :root
+ * (--bg, --bg-elevated, --text, --text-dim, --border, --accent); those
+ * cascade globally once defined, regardless of which stylesheet file
+ * references them, so this file doesn't need to redefine or import them.
+ */
+
+.downloads-widget {
+  border: 1px solid var(--border);
+  background: var(--bg-elevated);
+  border-radius: 8px;
+  padding: 1rem;
+  margin: 1.5rem 0;
+}
+
+.downloads-widget h3 {
+  margin-top: 0;
+}
+
+.downloads-widget ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-flow: row wrap;
+  gap: 0.5rem;
+}
+
+.downloads-widget a.download-button {
+  display: inline-block;
+  padding: 0.4rem 0.8rem;
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  color: var(--accent);
+}
+
+.downloads-widget a.download-button:hover {
+  background: var(--accent);
+  color: var(--bg);
+  text-decoration: none;
+}
+
+.copy-command {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 100%;
+  min-width: 0;
+  gap: 0.3rem;
+}
+
+.copy-command-label {
+  color: var(--text-dim);
+  font-size: 0.85rem;
+}
+
+.copy-command-row {
+  display: flex;
+  align-items: stretch;
+  min-width: 0;
+  gap: 0.5rem;
+}
+
+.copy-command-text {
+  flex: 1;
+  min-width: 0;
+  overflow-x: auto;
+  white-space: pre;
+  padding: 0.4rem 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text);
+  font-family: Consolas, "Cascadia Code", "SF Mono", Menlo, "Liberation Mono", monospace;
+  font-size: 0.9rem;
+}
+
+.copy-command-button {
+  flex-shrink: 0;
+  padding: 0.4rem 0.8rem;
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--accent);
+  font: inherit;
+  cursor: pointer;
+}
+
+.copy-command-button:hover {
+  background: var(--accent);
+  color: var(--bg);
+}

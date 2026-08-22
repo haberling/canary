@@ -1,3 +1,7 @@
+using System.Diagnostics;
+using System.Net;
+using System.Net.Sockets;
+using System.Text.Json;
 using Canary.Core.Build;
 using Canary.Core.Config;
 using Canary.Core.Init;
@@ -30,6 +34,8 @@ class Program
                 return RunServe(configPath, GetOption(args, "--port"));
             case "publish":
                 return RunPublish(configPath);
+            case "docs":
+                return RunDocs(HasFlag(args, "--force"));
             case "widgets":
                 return RunWidgetsList(configPath);
             case "widget":
@@ -355,6 +361,152 @@ class Program
         return 0;
     }
 
+    // One flag file per machine, not per invocation -- tracks the single
+    // currently-running `canary docs` instance (if any) so a second
+    // invocation can detect it instead of silently binding a second port
+    // nobody asked for. Lives in ApplicationData (cross-platform via
+    // Environment.SpecialFolder, not a hardcoded Windows path) rather than
+    // anywhere inside a checkout, since "is docs already open" is a
+    // machine-wide question, not a per-repo one.
+    private sealed record DocsLockInfo(int Pid, int Port);
+
+    static string DocsLockFilePath()
+    {
+        var dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Canary");
+        Directory.CreateDirectory(dir);
+        return Path.Combine(dir, "docs.lock.json");
+    }
+
+    // Corrupt/unreadable is treated the same as absent -- this is Canary's
+    // own bookkeeping file, never hand-edited, so there's nothing to
+    // validate or report back to a user about; just don't let it block
+    // `canary docs` from working.
+    static DocsLockInfo? ReadDocsLock(string path)
+    {
+        if (!File.Exists(path)) return null;
+        try
+        {
+            return JsonSerializer.Deserialize<DocsLockInfo>(File.ReadAllText(path));
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    static void WriteDocsLock(string path, int pid, int port) =>
+        File.WriteAllText(path, JsonSerializer.Serialize(new DocsLockInfo(pid, port)));
+
+    // Best-effort: cleanup running on the Ctrl+C shutdown path, or right
+    // before overwriting a stale/just-killed lock, should never itself fail
+    // the command over something as inconsequential as a delete race.
+    static void DeleteDocsLock(string path)
+    {
+        try { File.Delete(path); } catch { }
+    }
+
+    static bool IsProcessAlive(int pid)
+    {
+        try
+        {
+            var process = Process.GetProcessById(pid);
+            // A stale lock file whose PID has since been reused by some
+            // unrelated process would otherwise look identical to a real
+            // still-running `canary docs` -- not airtight (nothing short of
+            // inspecting the full command line would be), but a cheap check
+            // against the common case.
+            var name = process.ProcessName;
+            return name.Contains("Canary", StringComparison.OrdinalIgnoreCase) ||
+                   name.Contains("dotnet", StringComparison.OrdinalIgnoreCase);
+        }
+        catch (ArgumentException)
+        {
+            return false; // no process with that id
+        }
+    }
+
+    // Serves Canary's own bundled documentation (docsite/'s build output, the
+    // repo root's docs/), not a site the caller owns -- no --config, no
+    // build/watch, just a dumb static-file preview of whatever's already
+    // built. Resolved the same way templates/runtime already are (a walk up
+    // from the running exe's own directory), which already works for a
+    // from-source checkout with zero extra copying -- see PLAN.md's
+    // Documentation site section for why nothing more elaborate (embedding,
+    // a build-time copy step) was built for this until real packaging exists
+    // to design around.
+    static int RunDocs(bool force)
+    {
+        var docsDir = ResolveRepoSubdir("docs");
+        if (docsDir == null)
+        {
+            Console.Error.WriteLine("docs/ not found -- run `canary build --config docsite/canary.json` from a full Canary checkout first (see PLAN.md's Documentation site section).");
+            return 1;
+        }
+
+        var lockPath = DocsLockFilePath();
+        var existing = ReadDocsLock(lockPath);
+
+        if (existing != null && IsProcessAlive(existing.Pid))
+        {
+            if (!force)
+            {
+                Console.WriteLine($"docs already open at http://localhost:{existing.Port}/ (pid {existing.Pid}). Pass --force to close it and start a new one.");
+                return 0;
+            }
+
+            Console.WriteLine($"--force: closing existing docs server (pid {existing.Pid})...");
+            try
+            {
+                var oldProcess = Process.GetProcessById(existing.Pid);
+                oldProcess.Kill();
+                oldProcess.WaitForExit(3000);
+            }
+            catch
+            {
+                // Already gone, or couldn't be signaled -- "try to close"
+                // is best-effort, same standard as OpenBrowser below; fall
+                // through and start a new server regardless.
+            }
+        }
+
+        // Stale (process already gone) or just force-killed -- either way,
+        // don't leave old info sitting there before this run writes its own.
+        DeleteDocsLock(lockPath);
+
+        int port;
+        try
+        {
+            port = FindUnusedPort(9000, 10000);
+        }
+        catch (InvalidOperationException ex)
+        {
+            Console.Error.WriteLine(ex.Message);
+            return 1;
+        }
+
+        using var cts = new CancellationTokenSource();
+        Console.CancelKeyPress += (_, e) =>
+        {
+            e.Cancel = true;
+            cts.Cancel();
+        };
+
+        WriteDocsLock(lockPath, Environment.ProcessId, port);
+        try
+        {
+            var url = $"http://localhost:{port}/";
+            using var server = new StaticFileServer(docsDir, port);
+            Console.WriteLine($"Serving Canary's own docs from {docsDir} at {url} (Ctrl+C to stop)");
+            OpenBrowser(url);
+            server.RunAsync(cts.Token).GetAwaiter().GetResult();
+            return 0;
+        }
+        finally
+        {
+            DeleteDocsLock(lockPath);
+        }
+    }
+
     // Neither widget command reads canary.json at all -- they only need to
     // know the site's directory (to find its own widgets/ folder alongside
     // the built-in ones), not anything the config actually says. So unlike
@@ -466,6 +618,64 @@ class Program
     // served at once.
     static int GenerateRandomServePort() => Random.Shared.Next(6500, 7000);
 
+    // Unlike GenerateRandomServePort above (which just avoids well-known
+    // *other tools'* defaults, never checked against what's actually free
+    // right now), `canary docs` needs a port nothing else already holds --
+    // it's a one-shot command someone might run again while a previous
+    // instance, or anything else, is still bound to a port in the same
+    // range. A bind-then-immediately-release probe on a plain TcpListener is
+    // a real (if not perfectly race-free -- something else could grab the
+    // port in the gap between this probe releasing it and StaticFileServer's
+    // own HttpListener binding it) check that GenerateRandomServePort never
+    // attempts at all; good enough for a local single-user dev command.
+    static int FindUnusedPort(int minInclusive, int maxExclusive, int maxAttempts = 50)
+    {
+        for (var i = 0; i < maxAttempts; i++)
+        {
+            var candidate = Random.Shared.Next(minInclusive, maxExclusive);
+            try
+            {
+                var probe = new TcpListener(IPAddress.Loopback, candidate);
+                probe.Start();
+                probe.Stop();
+                return candidate;
+            }
+            catch (SocketException)
+            {
+                // Already in use -- try another candidate.
+            }
+        }
+
+        throw new InvalidOperationException($"Could not find an unused port in [{minInclusive}, {maxExclusive}) after {maxAttempts} attempts.");
+    }
+
+    // Best-effort only: if no browser can be launched this way (no display,
+    // an unrecognized OS, a sandboxed environment), the server is already up
+    // and its URL already printed either way, so a failure here isn't fatal
+    // to the command's actual job.
+    static void OpenBrowser(string url)
+    {
+        try
+        {
+            if (OperatingSystem.IsWindows())
+            {
+                Process.Start(new ProcessStartInfo { FileName = url, UseShellExecute = true });
+            }
+            else if (OperatingSystem.IsMacOS())
+            {
+                Process.Start("open", url);
+            }
+            else
+            {
+                Process.Start("xdg-open", url);
+            }
+        }
+        catch
+        {
+            // Non-fatal -- see comment above.
+        }
+    }
+
     static void PrintUsage()
     {
         Console.WriteLine("Usage: canary <command> [options]");
@@ -475,6 +685,7 @@ class Program
         Console.WriteLine("  build [--config <path>]                Build the site once");
         Console.WriteLine("  serve [--config <path>] [--port <n>]   Build, then serve output.dir locally, rebuilding on change (default port: canary.json's serve.port, normally 6913)");
         Console.WriteLine("  publish [--config <path>]              Build, then run canary.json's \"publish\" command (e.g. git add/commit/push for a git-served host)");
+        Console.WriteLine("  docs [--force]                         Open Canary's own bundled documentation in a browser, on a random unused port in [9000, 9999]; if already open, says so and exits unless --force closes the existing one first");
         Console.WriteLine("  widgets [--config <path>]              List discovered widgets (built-in + site-authored)");
         Console.WriteLine("  widget <name> [--config <path>]        Print that widget's clipboard usage example");
     }

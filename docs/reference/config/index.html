@@ -1,0 +1,81 @@
+<!--
+  Canary default shell template. Stamped onto every generated page (see
+  PLAN.md's "Chrome is unconditionally re-stamped every build" decision).
+  Placeholder contract is documented in Canary.Core.Build.PageBuilder, not
+  here -- deliberately: writing the literal placeholder syntax in this
+  comment would make the build's own string-replace match it too.
+
+  Nav stays populated client-side from /content/manifest.json (loadNav(), see
+  PLAN.md) -- this template doesn't render nav markup itself.
+-->
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>canary.json — Canary</title>
+  <link rel="stylesheet" href="/css/framework.css">
+  <link rel="stylesheet" href="/css/theme.css">
+  <link rel="stylesheet" href="/css/widgets/code.css">
+<link rel="stylesheet" href="/css/widgets/downloads.css">
+<link rel="stylesheet" href="/css/widgets/slideshow.css">
+
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-header-top">
+      <a class="site-title" href="/">Canary</a>
+    </div>
+    <nav id="site-nav" class="site-nav">
+      <!-- populated client-side from /content/manifest.json via loadNav() -->
+    </nav>
+  </header>
+
+  <main id="app"><h1>canary.json</h1>
+<p>Lives at a site's root. JSON, one config per environment — no dev/prod split, nav and routes are always derived from <code>content.root</code> plus the generated manifest, never redeclared here.</p>
+<pre><code>{
+  "site": { "name": "...", "baseUrl": "https://..." },
+  "content": { "root": "content" },
+  "output": { "dir": "docs" },
+  "renderMode": "hybrid",
+  "nav": { "depth": 1 },
+  "serve": { "port": 6913 },
+  "theme": { "shell": "shell.html", "base": "css/framework.css", "theme": "css/theme.css" },
+  "widgets": { "copyDefaultsOnInit": true, "preferBuiltIn": false },
+  "tools": { "breadcrumb": "tools/breadcrumb.sh" },
+  "publish": "git add docs &amp;&amp; git commit -m Publish &amp;&amp; git push"
+}</code></pre>
+<h2><code>site</code></h2>
+<ul><li><code>name</code> — required. Your site's display name, used in the page chrome and <code>&lt;title&gt;</code>.</li><li><code>baseUrl</code> — required. Your site's real public URL, used for sitemap generation.</li></ul>
+<h2><code>content</code></h2>
+<ul><li><code>root</code> — required. The directory (relative to <code>canary.json</code>) holding your markdown content.</li></ul>
+<h2><code>output</code></h2>
+<ul><li><code>dir</code> — defaults to <code>docs</code>, matching GitHub Pages' "serve from <code>/docs</code> on <code>main</code>" convention. Everything <code>canary build</code> produces goes here.</li></ul>
+<h2><code>renderMode</code></h2>
+<p><code>hybrid</code> or <code>static</code>. See <a href="/../guide/render-modes">Guide → Render Modes</a>. Defaults to <code>hybrid</code>.</p>
+<h2><code>nav</code></h2>
+<ul><li><code>depth</code> — how many directory levels deep the generated nav menu recurses. Defaults to <code>1</code>. A page deeper than this limit still exists and gets a real URL either way — this only controls how deep the nav <em>menu</em> itself goes, not what's reachable. <code>0</code> or negative means unlimited depth.</li></ul>
+<h2><code>serve</code></h2>
+<ul><li><code>port</code> — the port <code>canary serve</code> binds to when <code>--port</code> isn't passed on the command line. Defaults to <code>6913</code>. <code>canary init</code> generates a fresh random port per project instead of always writing this fixed default, so two sibling projects don't collide when both are served at once.</li></ul>
+<h2><code>theme</code></h2>
+<ul><li><code>shell</code> — path to the shell HTML template (page chrome).</li><li><code>base</code> — path to the base framework stylesheet.</li><li><code>theme</code> — path to your own theme stylesheet, loaded after <code>base</code>.</li></ul>
+<h2><code>widgets</code></h2>
+<ul><li><code>copyDefaultsOnInit</code> — defaults to <code>true</code>. Whether <code>canary init</code> copies the built-in widgets into your project's own <code>widgets/</code> folder as an editable starting point.</li><li><code>preferBuiltIn</code> — defaults to <code>false</code>. When <code>true</code>, always use Canary's built-in <code>downloads</code>/<code>slideshow</code> even if your project has its own local copies, without deleting them.</li></ul>
+<p>See <a href="/../guide/widgets">Guide → Widgets</a>.</p>
+<h2><code>tools</code></h2>
+<p>A name-to-shell-command map, the central registry a <code>.toolchain.json</code> in any content directory can reference by name. See <a href="/../guide/toolchain">Guide → Content Toolchain</a>.</p>
+<h2><code>publish</code></h2>
+<p>Optional. A single arbitrary shell command, run by <code>canary publish</code> after a fresh build. Not set by default. See <a href="/../guide/publishing">Guide → Publishing</a>.</p>
+<h2><code>initialized</code></h2>
+<p>Written by <code>canary init</code> on a successful scaffold; not something you should hand-write or hand-edit. Lets a later <code>init</code> run against the same directory detect it's already a Canary project and refuse without <code>--force</code>.</p></main>
+
+  <footer class="site-footer">
+    <span>Built with Canary.</span>
+  </footer>
+
+  <script type="module" src="/js/main.js"></script>
+  <script src="/js/widgets/downloads.js" defer></script>
+<script src="/js/widgets/slideshow.js" defer></script>
+
+</body>
+</html>

@@ -1,0 +1,171 @@
+<!--
+  Canary default shell template. Stamped onto every generated page (see
+  PLAN.md's "Chrome is unconditionally re-stamped every build" decision).
+  Placeholder contract is documented in Canary.Core.Build.PageBuilder, not
+  here -- deliberately: writing the literal placeholder syntax in this
+  comment would make the build's own string-replace match it too.
+
+  Nav stays populated client-side from /content/manifest.json (loadNav(), see
+  PLAN.md) -- this template doesn't render nav markup itself.
+-->
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Widgets — Canary</title>
+  <link rel="stylesheet" href="/css/framework.css">
+  <link rel="stylesheet" href="/css/theme.css">
+  <link rel="stylesheet" href="/css/widgets/code.css">
+<link rel="stylesheet" href="/css/widgets/downloads.css">
+<link rel="stylesheet" href="/css/widgets/slideshow.css">
+
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-header-top">
+      <a class="site-title" href="/">Canary</a>
+    </div>
+    <nav id="site-nav" class="site-nav">
+      <!-- populated client-side from /content/manifest.json via loadNav() -->
+    </nav>
+  </header>
+
+  <main id="app"><h1>Widgets</h1>
+<p>A widget is a fenced code block in markdown whose body is YAML, rendered through a template at build time — not a shortcode with ad-hoc syntax, real YAML filling a real Mustache template. Three ship built in: <code>downloads</code> (a list of download links and/or copy-paste install commands), <code>slideshow</code> (an image slideshow with captions), and <code>code</code> (an escaped, verbatim code block — the one used throughout this page to show the other two).</p>
+<p>Run <code>canary widget &lt;name&gt;</code> against a project to print any widget's ready-to-paste usage example straight from its own source — the canonical copy, not a doc snippet that can drift out of sync. <code>canary widgets</code> lists every widget name Canary can currently find for your project (built-in plus your own).</p>
+<h2><code>downloads</code></h2>
+<!--
+  Standard widget contract (see PLAN.md's widget-controversy notes): a plain
+  Mustache-syntax HTML template, filled from the fence block's YAML body.
+  Renders its lines back out as an escaped, verbatim code block -- the
+  general answer to "how do I show a widget's own fence syntax as example
+  text instead of it actually running as that widget," since a fence's info
+  string always dispatches to the matching widget with no escape sequence
+  otherwise (see PLAN.md's docsite notes). NOTE: this comment deliberately
+  never writes the actual double-brace tag syntax -- the templater has no
+  notion of "this is just a comment," so literal tags typed here would be
+  executed for real (this bit the downloads widget's own doc comment
+  earlier in the project the same way).
+
+  Canary.Core.Templating.YamlParser has no multi-line block-scalar support
+  (see PLAN.md) -- a multi-line example is written as one list entry per
+  source line, each its own quoted "text" field, rather than one big block
+  of text. Each entry has to be a one-field map, not a bare scalar list
+  item: the templater has no "current item" self-reference for a bare
+  scalar inside a section, only field lookups against a map. An optional
+  top-level "lang" field is cosmetic only (no syntax highlighting is
+  implemented) -- rendered as a small label and a language-<lang> class, a
+  hook for later.
+
+  A line containing a literal double quote needs single quotes as its OWN
+  YAML delimiter instead ('    - label: "My File"' below) -- YamlParser
+  only strips a scalar's matching outer quote pair, it never unescapes a
+  backslash inside one, so a line written as "...\"...\"" comes out with
+  literal backslashes still in it rather than the quote you meant. Found by
+  actually rendering this exact example and reading the output, not by
+  inspection -- see PLAN.md's docsite notes.
+-->
+<!--clipboard
+```code
+lang: yaml
+lines:
+  - text: "downloads:"
+  - text: "  title: Example"
+  - text: "  items:"
+  - text: '    - label: "My File"'
+```
+-->
+<div class="code-widget" data-widget="code">
+  <div class="code-widget-lang">yaml</div>
+  <pre><code class="language-yaml">```downloads
+title: Optional Title
+items:
+  - label: &quot;Windows Installer&quot;
+    url: &quot;https://example.com/file.msi&quot;
+  - label: &quot;User Manual&quot;
+    url: !url &quot;content/games/manual.pdf&quot;
+  - copy: true
+    label: &quot;Install via PowerShell&quot;
+    command: &quot;msiexec /i ... /quiet /norestart&quot;
+```
+</code></pre>
+</div>
+
+<ul><li><code>title</code> — optional heading; defaults to "Downloads" if omitted.</li><li><code>items</code> — a list of entries, each either a plain link (<code>label</code>, <code>url</code>) or a copy-paste command row (<code>copy: true</code>, <code>label</code>, <code>command</code>).</li></ul>
+<h2><code>slideshow</code></h2>
+<!--
+  Standard widget contract (see PLAN.md's widget-controversy notes): a plain
+  Mustache-syntax HTML template, filled from the fence block's YAML body.
+  Renders its lines back out as an escaped, verbatim code block -- the
+  general answer to "how do I show a widget's own fence syntax as example
+  text instead of it actually running as that widget," since a fence's info
+  string always dispatches to the matching widget with no escape sequence
+  otherwise (see PLAN.md's docsite notes). NOTE: this comment deliberately
+  never writes the actual double-brace tag syntax -- the templater has no
+  notion of "this is just a comment," so literal tags typed here would be
+  executed for real (this bit the downloads widget's own doc comment
+  earlier in the project the same way).
+
+  Canary.Core.Templating.YamlParser has no multi-line block-scalar support
+  (see PLAN.md) -- a multi-line example is written as one list entry per
+  source line, each its own quoted "text" field, rather than one big block
+  of text. Each entry has to be a one-field map, not a bare scalar list
+  item: the templater has no "current item" self-reference for a bare
+  scalar inside a section, only field lookups against a map. An optional
+  top-level "lang" field is cosmetic only (no syntax highlighting is
+  implemented) -- rendered as a small label and a language-<lang> class, a
+  hook for later.
+
+  A line containing a literal double quote needs single quotes as its OWN
+  YAML delimiter instead ('    - label: "My File"' below) -- YamlParser
+  only strips a scalar's matching outer quote pair, it never unescapes a
+  backslash inside one, so a line written as "...\"...\"" comes out with
+  literal backslashes still in it rather than the quote you meant. Found by
+  actually rendering this exact example and reading the output, not by
+  inspection -- see PLAN.md's docsite notes.
+-->
+<!--clipboard
+```code
+lang: yaml
+lines:
+  - text: "downloads:"
+  - text: "  title: Example"
+  - text: "  items:"
+  - text: '    - label: "My File"'
+```
+-->
+<div class="code-widget" data-widget="code">
+  <div class="code-widget-lang">yaml</div>
+  <pre><code class="language-yaml">```slideshow
+title: Optional Title
+slides:
+  - src: &quot;https://example.com/shot1.png&quot;
+    caption: &quot;Optional caption&quot;
+  - src: !url &quot;content/games/images/shot2.png&quot;
+```
+</code></pre>
+</div>
+
+<ul><li><code>title</code> — optional heading.</li><li><code>slides</code> — a list of entries, each with <code>src</code> and an optional <code>caption</code>.</li></ul>
+<h2><code>code</code></h2>
+<p>What renders the two boxes above. <code>lang</code> is an optional cosmetic label (no syntax highlighting is implemented — it just shows the name and sets a <code>language-&lt;lang&gt;</code> class as a hook for later); <code>lines</code> is a list of entries, each a single <code>text</code> field holding one line of the example, in order.</p>
+<p>It exists specifically because a widget is invoked by its own name as a fence's info string, with no escape sequence — a literal `<code> </code>`<code>downloads </code><code> fence always runs the downloads widget, it can never just *display* as text. Wrapping the example one line at a time inside </code>code<code> sidesteps that: the outer fence's info string is </code>code`, so it renders instead of running.</p>
+<p><strong>A real gotcha found writing this page, worth repeating:</strong> <code>YamlParser</code> strips a scalar's matching outer quote pair but never unescapes a backslash inside one — writing a line's <code>text</code> as <code>"...\"...\""</code> leaves literal backslashes in the output instead of the quote you meant. Use single quotes as the line's own delimiter instead whenever it contains a literal double quote, as several lines above do (<code>'  - label: "Windows Installer"'</code>).</p>
+<h2>The <code>!url</code> tag</h2>
+<p>A site-root-relative path (e.g. <code>content/games/manual.pdf</code>, matching how markdown links/images are already written) needs the explicit <code>!url</code> YAML tag on that value to be rewritten into a root-relative URL that works regardless of how deep the current page is nested. This is deliberate, not automatic: nothing gets resolved just because a field happens to be named <code>url</code> or <code>src</code> — you opt in per value, on <code>downloads</code>' <code>url</code> field and <code>slideshow</code>'s <code>src</code> field. A plain value with no tag is left exactly as written, which is correct for an already-absolute <code>https://</code> URL and broken for a relative one on any page that isn't the site root.</p>
+<h2>Writing your own</h2>
+<p>Drop a <code>name.html</code> file into your project's <code>widgets/</code> folder — a plain Mustache template (<code>{{var}}</code> sections, inverted sections) filled from the fence block's YAML body. No registration needed: reference that name as a fence's info string in content, and if a matching template exists, it's used. Add a matching <code>.js</code> file alongside it for shared interactive behavior (referenced once per page, not regenerated per widget instance — use event delegation so it keeps working after a <code>hybrid</code>-mode fragment swap), and/or a matching <code>.css</code> file for its styling. A site-authored widget always wins over a built-in one of the same name.</p>
+<h2><code>copyDefaultsOnInit</code> / <code>preferBuiltIn</code></h2>
+<p><code>canary init</code> copies the built-in widgets into your project's own <code>widgets/</code> folder by default (<code>copyDefaultsOnInit: true</code>) — an "eject"-style starting point you can edit freely, rather than leaving them invisible inside Canary's own install. Since local copies win on a name collision, editing them takes effect immediately. If you'd rather always track Canary's current built-in versions instead of your local edits, set <code>preferBuiltIn: true</code> — a single site-wide switch, not per-widget.</p></main>
+
+  <footer class="site-footer">
+    <span>Built with Canary.</span>
+  </footer>
+
+  <script type="module" src="/js/main.js"></script>
+  <script src="/js/widgets/downloads.js" defer></script>
+<script src="/js/widgets/slideshow.js" defer></script>
+
+</body>
+</html>

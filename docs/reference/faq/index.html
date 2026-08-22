@@ -1,0 +1,55 @@
+<!--
+  Canary default shell template. Stamped onto every generated page (see
+  PLAN.md's "Chrome is unconditionally re-stamped every build" decision).
+  Placeholder contract is documented in Canary.Core.Build.PageBuilder, not
+  here -- deliberately: writing the literal placeholder syntax in this
+  comment would make the build's own string-replace match it too.
+
+  Nav stays populated client-side from /content/manifest.json (loadNav(), see
+  PLAN.md) -- this template doesn't render nav markup itself.
+-->
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>FAQ — Canary</title>
+  <link rel="stylesheet" href="/css/framework.css">
+  <link rel="stylesheet" href="/css/theme.css">
+  <link rel="stylesheet" href="/css/widgets/code.css">
+<link rel="stylesheet" href="/css/widgets/downloads.css">
+<link rel="stylesheet" href="/css/widgets/slideshow.css">
+
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-header-top">
+      <a class="site-title" href="/">Canary</a>
+    </div>
+    <nav id="site-nav" class="site-nav">
+      <!-- populated client-side from /content/manifest.json via loadNav() -->
+    </nav>
+  </header>
+
+  <main id="app"><h1>FAQ</h1>
+<h2>A publish or toolchain command that should work just silently fails on Windows</h2>
+<p>Check whether the command is a bare filename with no path separator (e.g. <code>publish.cmd</code> instead of <code>tools/publish.cmd</code> or <code>./publish.cmd</code>). On a machine with the <code>NoDefaultCurrentDirectoryInExePath</code> Windows security setting enabled, a bare filename silently fails to resolve. A path with a separator bypasses that lookup entirely and always works. Always write local script commands with an explicit path.</p>
+<h2>I edited canary.json while <code>canary serve</code> was running and nothing changed</h2>
+<p>Expected — <code>canary serve</code> treats the config as fixed for the lifetime of the session and doesn't re-read it on every rebuild. Restart the server after editing <code>canary.json</code>.</p>
+<h2>My widget's <code>url</code>/<code>src</code> value is broken on any page except the home page</h2>
+<p>You need the explicit <code>!url</code> YAML tag on that value (<code>url: !url "content/games/manual.pdf"</code>) — see <a href="/../guide/widgets">Guide → Widgets</a>. A plain value with no tag is used exactly as written, which only works if it's already an absolute <code>https://</code> URL.</p>
+<h2>Can I use markdown tables?</h2>
+<p>Not yet — Canary's markdown renderer is a small hand-rolled implementation (see <a href="/../guide/why-canary">Why Canary</a>) covering headings, paragraphs, bold/italic, inline code, links/images, fenced code blocks, single-level unordered/ordered lists, blockquotes, and horizontal rules. No tables, and list items are single-line only (no nested lists, no multi-paragraph list items). Work around a table with a bulleted list instead.</p>
+<h2>How do I show a <code>downloads</code>/<code>slideshow</code> fence block as a literal example in my own content?</h2>
+<p>A widget is invoked by its name as the fence's info string, and there's no escape syntax for "show this fence as text instead of running it" — writing a literal `<code> </code>`<code>downloads </code><code> fence always runs the downloads widget. Use the built-in </code>code<code> widget instead: it renders its </code>lines` back out as an escaped, verbatim block, so wrapping the example one line at a time inside it displays as text rather than executing. See <a href="/../guide/widgets">Guide → Widgets</a> for the exact shape — this documentation's own Widgets page uses it for exactly this.</p></main>
+
+  <footer class="site-footer">
+    <span>Built with Canary.</span>
+  </footer>
+
+  <script type="module" src="/js/main.js"></script>
+  <script src="/js/widgets/downloads.js" defer></script>
+<script src="/js/widgets/slideshow.js" defer></script>
+
+</body>
+</html>

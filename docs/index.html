@@ -1,0 +1,51 @@
+<!--
+  Canary default shell template. Stamped onto every generated page (see
+  PLAN.md's "Chrome is unconditionally re-stamped every build" decision).
+  Placeholder contract is documented in Canary.Core.Build.PageBuilder, not
+  here -- deliberately: writing the literal placeholder syntax in this
+  comment would make the build's own string-replace match it too.
+
+  Nav stays populated client-side from /content/manifest.json (loadNav(), see
+  PLAN.md) -- this template doesn't render nav markup itself.
+-->
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Canary</title>
+  <link rel="stylesheet" href="/css/framework.css">
+  <link rel="stylesheet" href="/css/theme.css">
+  <link rel="stylesheet" href="/css/widgets/code.css">
+<link rel="stylesheet" href="/css/widgets/downloads.css">
+<link rel="stylesheet" href="/css/widgets/slideshow.css">
+
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-header-top">
+      <a class="site-title" href="/">Canary</a>
+    </div>
+    <nav id="site-nav" class="site-nav">
+      <!-- populated client-side from /content/manifest.json via loadNav() -->
+    </nav>
+  </header>
+
+  <main id="app"><h1>Canary</h1>
+<p>A hand-rolled, no-framework static site engine: a small TypeScript client runtime (real paths via the History API, nav population, content widgets) paired with a C# CLI that prerenders every route to real static HTML — crawlable by default, sitemap-friendly, GitHub Pages-friendly.</p>
+<p>A "Canary site" is a directory holding a <code>canary.json</code> config plus markdown content and theme assets. <code>canary build</code>/<code>canary serve</code> work on that directory the same way for any site that adopts it — including this one: this documentation is itself a Canary site, built by the same <code>canary build</code> command a real project uses, from source you can read in <code>docsite/</code> in the repo.</p>
+<h2>Where to start</h2>
+<ul><li>New to Canary? Start with <a href="/getting-started">Getting Started</a> — scaffold a project, serve it locally, make your first edit.</li><li>Already have a project and want a specific answer? Jump to <a href="/reference">Reference</a> for <code>canary.json</code> and the CLI.</li><li>Want the concepts, not just the commands? See <a href="/guide">Guide</a> for render modes, widgets, the content toolchain, and publishing.</li><li>Curious why Canary exists at all instead of reaching for an existing static site generator? See <a href="/guide/why-canary">Why Canary</a>.</li></ul>
+<h2>Status</h2>
+<p>Pre-alpha. Canary is run from source today — build and run <code>dotnet run --project src/Canary</code> from a checkout. There's no published package yet (winget is the intended eventual distribution channel); see <a href="/reference/cli">Reference → CLI</a> for the commands as they exist right now.</p></main>
+
+  <footer class="site-footer">
+    <span>Built with Canary.</span>
+  </footer>
+
+  <script type="module" src="/js/main.js"></script>
+  <script src="/js/widgets/downloads.js" defer></script>
+<script src="/js/widgets/slideshow.js" defer></script>
+
+</body>
+</html>

@@ -10,8 +10,12 @@ dist/
 bin/
 obj/
 
-# Site build output (prerendered site, per PLAN.md)
+# Site build output (prerendered site, per PLAN.md) is ignored by default --
+# EXCEPT the repo root's own /docs/, which is docsite/'s build output (the
+# project's own documentation site, dogfooding Canary) and needs to actually
+# reach GitHub for GitHub Pages / in-browser viewing to work at all.
 docs/
+!/docs/
 
 # Local dogfood example project (Pirates of Penzance) -- source is tracked as
 # a worked example; only its generated manifest is ignored (build output, docs/,
