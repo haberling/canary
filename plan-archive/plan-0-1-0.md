@@ -1,3 +1,5 @@
+> **Complete, superseded by [plan-0-1-1](../plan-0-1-1.md).**
+
 # Canary — Website Framework
 
 ## What Canary is
