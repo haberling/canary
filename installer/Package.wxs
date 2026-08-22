@@ -14,6 +14,12 @@
     <MajorUpgrade DowngradeErrorMessage="A newer version of Canary is already installed. Uninstall it first if you need to downgrade." />
     <MediaTemplate EmbedCab="yes" />
 
+    <!-- Add/Remove Programs icon, generated from docsite/img/logo.svg
+         (rasterized at 16/32/48/256px, packed into one multi-resolution
+         .ico); see docsite/img/logo.svg for the source. -->
+    <Icon Id="CanaryIcon" SourceFile="canary.ico" />
+    <Property Id="ARPPRODUCTICON" Value="CanaryIcon" />
+
     <StandardDirectory Id="ProgramFiles64Folder">
       <Directory Id="INSTALLFOLDER" Name="Canary" />
     </StandardDirectory>

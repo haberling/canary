@@ -33,10 +33,13 @@ public sealed class PageBuilder
     }
 
     // shellTemplate placeholders: {{title}}, {{siteName}}, {{content}},
-    // {{widgetScripts}}, {{widgetStyles}}. widgetScriptsHtml/widgetStylesHtml
-    // are pre-built by the caller (SiteBuilder, which knows what's
-    // discovered site-wide) -- PageBuilder just substitutes them, same as
-    // every other placeholder.
+    // {{widgetScripts}}, {{widgetStyles}}, {{logoImg}}, {{favicon}}.
+    // widgetScriptsHtml/widgetStylesHtml/logoImgHtml/faviconHtml are all
+    // pre-built by the caller (SiteBuilder, which knows what's discovered/
+    // configured site-wide) -- PageBuilder just substitutes them, same as
+    // every other placeholder. logoImgHtml/faviconHtml are "" when the site
+    // has no theme.logo/theme.favicon configured, so an unbranded site's
+    // shell renders with neither tag present at all.
     //
     // transformSource, if given, is applied to the raw markdown before
     // rendering. The title is always read from the raw, pre-transform
@@ -44,7 +47,8 @@ public sealed class PageBuilder
     // footer link, not rewriting a page's own heading).
     public PageBuildResult BuildPage(
         string sourceMarkdownPath, string outputHtmlPath, string shellTemplate, string siteName,
-        string widgetScriptsHtml = "", string widgetStylesHtml = "", Func<string, string>? transformSource = null)
+        string widgetScriptsHtml = "", string widgetStylesHtml = "", Func<string, string>? transformSource = null,
+        string logoImgHtml = "", string faviconHtml = "")
     {
         var source = File.ReadAllText(sourceMarkdownPath);
         var transformed = transformSource != null ? transformSource(source) : source;
@@ -58,6 +62,8 @@ public sealed class PageBuilder
             .Replace("{{siteName}}", siteName)
             .Replace("{{widgetScripts}}", widgetScriptsHtml)
             .Replace("{{widgetStyles}}", widgetStylesHtml)
+            .Replace("{{logoImg}}", logoImgHtml)
+            .Replace("{{favicon}}", faviconHtml)
             .Replace("{{content}}", content);
 
         if (File.Exists(outputHtmlPath) && File.ReadAllText(outputHtmlPath) == html)

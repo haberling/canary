@@ -1,3 +1,5 @@
+<img src="docsite/img/logo.svg" width="72" alt="Canary logo">
+
 # Canary
 
 A hand-rolled, no-framework static site engine: a TypeScript client router (real paths via the History API) + nav/widget runtime for the browser, paired with a build/deploy tool that prerenders every route to real static HTML for search-engine crawlability (sitemap-friendly, GitHub Pages-friendly).
