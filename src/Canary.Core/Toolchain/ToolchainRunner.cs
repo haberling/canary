@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using Canary.Core.Shell;
 
 namespace Canary.Core.Toolchain;
 
@@ -44,14 +45,14 @@ public static class ToolchainRunner
         if (!registry.TryGetValue(name, out var command))
         {
             throw new InvalidOperationException(
-                $"Unknown tool '{name}' referenced in .toolchain.json -- no matching entry in config.json's \"tools\" registry.");
+                $"Unknown tool '{name}' referenced in .toolchain.json -- no matching entry in canary.json's \"tools\" registry.");
         }
         return command;
     }
 
     private static string Execute(string command, ToolchainContext context, string input)
     {
-        var (fileName, arguments) = ShellInvocation(command);
+        var (fileName, arguments) = ShellCommand.Resolve(command);
         var psi = new ProcessStartInfo
         {
             FileName = fileName,
@@ -107,25 +108,4 @@ public static class ToolchainRunner
 
         return stdout;
     }
-
-    // Found via a real test failure, not by inspection -- cmd.exe's own
-    // command-line quoting is famously two bugs deep. Plain `/c command`
-    // breaks the instant the command contains a forward slash (cmd's
-    // switch parser keeps scanning past /c for more "/x"-shaped switches,
-    // so "tools/breadcrumb.sh" gets misread as a second switch,
-    // "/breadcrumb.sh"). Simply quoting it (`/c "command"`) doesn't fix
-    // that either: cmd only preserves the quotes as part of the command
-    // text under a specific set of conditions (see `cmd /?`), one of which
-    // requires whitespace *inside* the quoted string -- a single bare path
-    // like "tools/breadcrumb.sh" has none, so cmd falls back to stripping
-    // the quotes and we're right back to the broken unquoted case.
-    // Prefixing with `call ` (`/c "call tools/breadcrumb.sh"`) reliably
-    // satisfies that whitespace condition regardless of what the actual
-    // command looks like, and is a safe no-op prefix for both batch files
-    // and ordinary executables -- verified empirically (including that
-    // exit codes still propagate correctly) before landing this.
-    private static (string FileName, string Arguments) ShellInvocation(string command) =>
-        OperatingSystem.IsWindows()
-            ? ("cmd.exe", $"/c \"call {command}\"")
-            : ("/bin/sh", $"-c \"{command.Replace("\"", "\\\"")}\"");
 }

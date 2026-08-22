@@ -1,12 +1,10 @@
 namespace Canary.Core.Config;
 
-// Config schema only, as of this writing -- neither field's actual behavior
-// is wired up yet (see PLAN.md's widget-controversy notes). CopyDefaultsOnInit
-// needs `canary init` to exist first (Phase 4, not started); PreferBuiltIn
-// needs a precedence-flip added to Widgets.WidgetDiscovery. Deliberately
-// scoped this way: adding the schema now without the behavior avoids a
-// config field that silently does nothing if someone starts using it before
-// either piece lands, since it simply won't be recognized/read at all yet.
+// CopyDefaultsOnInit is wired up as of `canary init` (see
+// Canary.Core.Init.SiteInitializer). PreferBuiltIn is still schema only --
+// `canary init` reads/writes its value, but nothing acts on it yet; it
+// needs a precedence-flip added to Widgets.WidgetDiscovery (today:
+// site-authored unconditionally wins regardless of this setting).
 public sealed class WidgetsConfig
 {
     // On `canary init`, copy the built-in widgets (downloads/slideshow)
@@ -15,7 +13,8 @@ public sealed class WidgetsConfig
     // installation, invisible until a site author goes looking for them.
     // Site-authored widgets already take precedence over built-in ones on
     // a name collision, so once copied, these local copies become the
-    // active version on the very next build.
+    // active version on the very next build. `canary init` always
+    // overwrites these files on every run, not just a fresh project.
     public bool CopyDefaultsOnInit { get; set; } = true;
 
     // Single site-wide switch (not per-widget): when true, ignore a

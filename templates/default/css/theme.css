@@ -1,0 +1,18 @@
+/*
+ * Starter theme layer -- loads after css/framework.css and overrides its
+ * :root tokens (and, if you want a different logo/title treatment, the
+ * .site-logo / .site-title rules) with your own branding. The values below
+ * just restate framework.css's own defaults, so this file is a valid,
+ * immediately-usable starting point rather than an empty shell -- edit them
+ * to make the site look like your own. See workspace/css/theme.css in the
+ * Canary repo for a worked example of a real theme (navy/gold, serif title).
+ */
+
+:root {
+  --bg: #17181c;
+  --bg-elevated: #1f2126;
+  --text: #e8e9eb;
+  --text-dim: #9aa0a8;
+  --accent: #4f8cff;
+  --border: #2b2d33;
+}

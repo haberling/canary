@@ -9,9 +9,27 @@ public sealed class CanaryConfig
     public ThemeConfig Theme { get; set; } = new();
     public WidgetsConfig Widgets { get; set; } = new();
     public NavConfig Nav { get; set; } = new();
+    public ServeConfig Serve { get; set; } = new();
 
     // name -> shell command. Definition only -- application (which pages a
     // tool runs on) lives per-directory in .toolchain.json, not here. See
     // PLAN.md's "Content toolchain" section.
     public Dictionary<string, string> Tools { get; set; } = new();
+
+    // A single arbitrary external command, run by `canary publish` after a
+    // fresh build. Optional and not validated -- Canary doesn't know or
+    // want to know how a site is actually hosted; this is deliberately a
+    // bare string, not a deploy-target abstraction, same "just run
+    // whatever the site author wrote" philosophy as a toolchain tool. See
+    // PLAN.md's "Publishing" section.
+    public string? Publish { get; set; }
+
+    // Written by `canary init` on a successful scaffold; checked by future
+    // `canary init` runs against the same directory to refuse silently
+    // overwriting an existing project without --force. An explicit,
+    // self-documenting marker rather than inferring "already a project"
+    // from canary.json's mere existence -- see PLAN.md's "Scaffolding"
+    // section. Not validated by ConfigLoader, not read anywhere in the
+    // build/serve pipeline.
+    public bool Initialized { get; set; }
 }

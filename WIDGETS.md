@@ -17,7 +17,7 @@ There is no fourth piece, no C# class to write, no registration step. `Canary.Co
 ## Step by step: adding a new widget
 
 1. **Pick a name** — this becomes both the filename and the fence tag. Say you're building a `callout` widget.
-2. **Create `widgets/callout.html`** in your site root (next to `content/`, `config.json`, etc.) — create the `widgets/` folder if it doesn't exist yet. Write it as a plain Mustache template (see syntax below).
+2. **Create `widgets/callout.html`** in your site root (next to `content/`, `canary.json`, etc.) — create the `widgets/` folder if it doesn't exist yet. Write it as a plain Mustache template (see syntax below).
 3. **(Optional) create `widgets/callout.js`** alongside it, if the widget needs any client-side interactivity (click handlers, etc.).
 4. **(Optional) create `widgets/callout.css`** alongside it, if the widget needs its own styling.
 5. **Use it in content** — any `.md` file can now write:
@@ -37,7 +37,7 @@ That's the whole workflow. The rest of this doc is reference material for steps 
 `WidgetDiscovery.Discover` looks in two places, one file extension at a time (`*.html` for templates, `*.js` for behavior scripts, `*.css` for styling):
 
 - **Built-in**: `runtime/widgets/` in the Canary repo itself (source), copied unchanged to `runtime/dist/widgets/` as part of Canary's own build — `downloads` and `slideshow` (each with an `.html`, `.js`, and `.css`) live here today.
-- **Site-authored**: `<siteRoot>/widgets/` — a `widgets/` folder next to your site's `config.json`.
+- **Site-authored**: `<siteRoot>/widgets/` — a `widgets/` folder next to your site's `canary.json`.
 
 **Site-authored wins on a filename collision.** If your site has its own `widgets/downloads.html`, it's used instead of the built-in one, no config flag needed. (The `widgets.preferBuiltIn` config field is meant to flip that precedence back — it's schema-only right now, not wired up to `WidgetDiscovery` yet.)
 

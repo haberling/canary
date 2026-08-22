@@ -83,7 +83,7 @@ public sealed class SiteBuilder
     // null (render everything) unless every path in changedPaths maps
     // cleanly onto an existing route's own source file -- a changed path
     // that isn't any route's SourcePath (a widget/tool-script/theme/
-    // config.json edit, say) means the change could affect more than just
+    // canary.json edit, say) means the change could affect more than just
     // one page, so it falls back to rendering everything rather than
     // guessing.
     private static IReadOnlyList<ContentRoute> ResolveRoutesToRender(IReadOnlyList<ContentRoute> routes, IReadOnlySet<string>? changedPaths)

@@ -18,6 +18,10 @@ docs/
 # is already covered above since that pattern matches at any depth)
 workspace/content/manifest.json
 
+# Scratch output from manually exercising `canary init` -- disposable, never
+# a real site (unlike workspace/ above)
+initTestWorkspace/
+
 # Editor / OS
 .vs/
 .vscode/

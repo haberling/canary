@@ -111,7 +111,7 @@ public class ConfigLoaderTests
     [Fact]
     public void Load_MissingFile_ThrowsCanaryConfigException()
     {
-        var ex = Assert.Throws<CanaryConfigException>(() => ConfigLoader.Load("nonexistent-config.json"));
+        var ex = Assert.Throws<CanaryConfigException>(() => ConfigLoader.Load("nonexistent-canary.json"));
 
         Assert.Contains("not found", ex.Message);
     }
