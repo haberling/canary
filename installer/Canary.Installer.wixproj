@@ -1,0 +1,36 @@
+<Project Sdk="WixToolset.Sdk/5.0.2">
+
+  <PropertyGroup>
+    <OutputName>CanaryInstaller</OutputName>
+    <!-- Canary itself only ships win-x64 this round; see PLAN.md. Without
+         this, the compiler defaults to x86 and every harvested file under
+         ProgramFiles64Folder/INSTALLFOLDER trips ICE80. -->
+    <Platform>x64</Platform>
+    <!--
+      Where Canary.csproj's Native AOT publish output landed (see PLAN.md's
+      packaging work, Phase 3). This project packages that output as-is; it
+      does not build or publish Canary itself, to keep "what ships" defined
+      in one place (Canary.csproj's own Content items) rather than
+      duplicated here. Override with -p:CanaryPublishDir=... to point at a
+      different publish output (e.g. a CI-produced one).
+    -->
+    <CanaryPublishDir Condition="'$(CanaryPublishDir)' == ''">$(MSBuildThisFileDirectory)..\src\Canary\bin\Release\net10.0\win-x64\publish\</CanaryPublishDir>
+    <DefineConstants>CanaryVersion=$(VersionPrefix);CanaryPublishDir=$(CanaryPublishDir)</DefineConstants>
+  </PropertyGroup>
+
+  <!--
+    BeforeTargets="CoreCompile", not "Build": the WiX SDK's actual harvest/
+    build step is the CoreCompile target (see tools/wix.targets in the
+    WixToolset.Sdk package, which is what invokes the WixBuild task), and
+    BuildDependsOn-prepending didn't reach it either (proven empirically:
+    both let WiX harvest an empty ComponentGroup from a missing directory
+    and produce a broken zero-file MSI before either hook fired). This is
+    the one that actually runs first.
+  -->
+  <Target Name="EnsureCanaryPublishOutputExists" BeforeTargets="CoreCompile">
+    <Error
+      Condition="!Exists('$(CanaryPublishDir)Canary.exe')"
+      Text="No publish output found at '$(CanaryPublishDir)Canary.exe'. Run `dotnet publish src\Canary\Canary.csproj -c Release -p:SelfContained=true` first, then build this installer." />
+  </Target>
+
+</Project>

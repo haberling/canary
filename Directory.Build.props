@@ -1,0 +1,12 @@
+<Project>
+
+  <!--
+    One shared version for the whole repo. Canary.csproj's publish and the
+    MSI's ProductVersion (installer/Package.wxs) both read this, so the exe
+    and its installer can never drift apart. Pre-alpha, per README.md.
+  -->
+  <PropertyGroup>
+    <VersionPrefix>0.1.0</VersionPrefix>
+  </PropertyGroup>
+
+</Project>

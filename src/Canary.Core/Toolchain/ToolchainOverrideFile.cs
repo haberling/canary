@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Canary.Core.Json;
 
 namespace Canary.Core.Toolchain;
 
@@ -20,12 +21,6 @@ public static class ToolchainOverrideFile
 {
     public const string FileName = ".toolchain.json";
 
-    private static readonly JsonSerializerOptions SerializerOptions = new()
-    {
-        WriteIndented = true,
-        PropertyNameCaseInsensitive = true,
-    };
-
     // directories: every content directory that has at least one .md file
     // directly inside it, at any depth. Callers derive this from the same
     // route list ContentScanner already computed, rather than this class
@@ -38,7 +33,7 @@ public static class ToolchainOverrideFile
             var path = Path.Combine(dir, FileName);
             if (File.Exists(path)) continue;
 
-            var json = JsonSerializer.Serialize(new ToolchainOverride(), SerializerOptions);
+            var json = JsonSerializer.Serialize(new ToolchainOverride(), CanaryJsonContext.Default.ToolchainOverride);
             File.WriteAllText(path, json + "\n");
         }
     }
@@ -49,7 +44,7 @@ public static class ToolchainOverrideFile
         if (!File.Exists(path)) return Array.Empty<string>();
 
         var raw = File.ReadAllText(path);
-        var config = JsonSerializer.Deserialize<ToolchainOverride>(raw, SerializerOptions);
+        var config = JsonSerializer.Deserialize(raw, CanaryJsonContext.Default.ToolchainOverride);
         return config?.Tools ?? (IReadOnlyList<string>)Array.Empty<string>();
     }
 }

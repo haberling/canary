@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Net;
 using System.Net.Sockets;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using Canary.Core.Build;
 using Canary.Core.Config;
 using Canary.Core.Init;
@@ -11,7 +12,7 @@ using Canary.Core.Widgets;
 
 namespace Canary;
 
-class Program
+partial class Program
 {
     static int Main(string[] args)
     {
@@ -370,6 +371,15 @@ class Program
     // machine-wide question, not a per-repo one.
     private sealed record DocsLockInfo(int Pid, int Port);
 
+    // AOT-safe metadata for DocsLockInfo -- this is the exe's own private
+    // bookkeeping type, not part of Canary.Core's model set, so it gets its
+    // own tiny context rather than reaching into Canary.Core.Json for a
+    // type nothing there otherwise needs to know about.
+    [JsonSerializable(typeof(DocsLockInfo))]
+    private partial class DocsLockJsonContext : JsonSerializerContext
+    {
+    }
+
     static string DocsLockFilePath()
     {
         var dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Canary");
@@ -386,7 +396,7 @@ class Program
         if (!File.Exists(path)) return null;
         try
         {
-            return JsonSerializer.Deserialize<DocsLockInfo>(File.ReadAllText(path));
+            return JsonSerializer.Deserialize(File.ReadAllText(path), DocsLockJsonContext.Default.DocsLockInfo);
         }
         catch
         {
@@ -395,7 +405,7 @@ class Program
     }
 
     static void WriteDocsLock(string path, int pid, int port) =>
-        File.WriteAllText(path, JsonSerializer.Serialize(new DocsLockInfo(pid, port)));
+        File.WriteAllText(path, JsonSerializer.Serialize(new DocsLockInfo(pid, port), DocsLockJsonContext.Default.DocsLockInfo));
 
     // Best-effort: cleanup running on the Ctrl+C shutdown path, or right
     // before overwriting a stale/just-killed lock, should never itself fail
@@ -571,14 +581,26 @@ class Program
         }
     }
 
-    // Dev-convenience only: true embedding of the compiled JS runtime (and,
-    // for `canary init`, the templates/default/ scaffold) into the Canary
-    // package itself is a known, tracked gap (see PLAN.md), not solved
-    // here. This just finds a subdirectory relative to Canary's own repo
-    // layout when run via `dotnet run`/from a local build, so both are
-    // testable end-to-end during development.
+    // Two ways this data (runtime/dist, templates/default, docs) can be
+    // found, tried in order:
+    //  1. Beside the exe itself -- how a real install works. `canary.csproj`
+    //     stages these three directories into the publish output next to
+    //     Canary.exe (see its Content items), and the MSI installs that
+    //     whole publish output as-is, so a packaged install never needs
+    //     anything beyond AppContext.BaseDirectory.
+    //  2. Walking up from the exe looking for a repo checkout -- dev
+    //     convenience only, so `dotnet run`/a local build still finds these
+    //     without needing a publish step first. Never taken by a real
+    //     install, since nothing above AppContext.BaseDirectory in
+    //     Program Files is a Canary repo checkout.
     static string? ResolveRepoSubdir(params string[] segments)
     {
+        var beside = Path.Combine([AppContext.BaseDirectory, .. segments]);
+        if (Directory.Exists(beside))
+        {
+            return beside;
+        }
+
         var dir = new DirectoryInfo(AppContext.BaseDirectory);
         for (var i = 0; i < 8 && dir != null; i++, dir = dir.Parent)
         {

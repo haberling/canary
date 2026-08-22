@@ -1,0 +1,56 @@
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+  <Package
+    Name="Canary"
+    Manufacturer="Canary"
+    Version="$(var.CanaryVersion)"
+    UpgradeCode="944E4AC0-8A31-4D2F-BAC9-A35CFA46DEDF">
+
+    <!--
+      A newer install always replaces an older one in place (no
+      side-by-side versions), matching a normal CLI tool's expectations
+      (one "canary" on PATH). Blocks installing an older MSI over a newer
+      one instead of silently downgrading.
+    -->
+    <MajorUpgrade DowngradeErrorMessage="A newer version of Canary is already installed. Uninstall it first if you need to downgrade." />
+    <MediaTemplate EmbedCab="yes" />
+
+    <StandardDirectory Id="ProgramFiles64Folder">
+      <Directory Id="INSTALLFOLDER" Name="Canary" />
+    </StandardDirectory>
+
+    <!--
+      Harvested straight from Canary.csproj's own publish output (see
+      Canary.Installer.wixproj's CanaryPublishDir) rather than hand-listed:
+      runtime/dist, templates/default, and docs all grow independently of
+      this installer project, so a glob is what keeps this file from going
+      stale every time a page or widget is added.
+    -->
+    <ComponentGroup Id="CanaryPublishOutput" Directory="INSTALLFOLDER">
+      <Files Include="$(var.CanaryPublishDir)**">
+        <Exclude Files="$(var.CanaryPublishDir)*.pdb" />
+      </Files>
+    </ComponentGroup>
+
+    <!--
+      "Feels like a native CLI tool," not `dotnet tool run` ceremony (see
+      PLAN.md's Distribution & consumption model). This is what makes
+      `canary` resolve from any freshly opened shell after install.
+    -->
+    <Component Id="PathEnvironment" Directory="INSTALLFOLDER" Guid="6E6E3F1E-6EF8-4C7B-9A0B-6C6B6C7E2B3A">
+      <Environment
+        Id="AddInstallFolderToPath"
+        Name="PATH"
+        Value="[INSTALLFOLDER]"
+        Permanent="no"
+        Part="last"
+        Action="set"
+        System="yes" />
+    </Component>
+
+    <Feature Id="Main">
+      <ComponentGroupRef Id="CanaryPublishOutput" />
+      <ComponentRef Id="PathEnvironment" />
+    </Feature>
+
+  </Package>
+</Wix>

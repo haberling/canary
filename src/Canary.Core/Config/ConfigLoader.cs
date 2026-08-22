@@ -1,16 +1,10 @@
 using System.Text.Json;
-using System.Text.Json.Serialization;
+using Canary.Core.Json;
 
 namespace Canary.Core.Config;
 
 public static class ConfigLoader
 {
-    private static readonly JsonSerializerOptions SerializerOptions = new()
-    {
-        PropertyNameCaseInsensitive = true,
-        Converters = { new JsonStringEnumConverter(JsonNamingPolicy.CamelCase) },
-    };
-
     public static CanaryConfig Load(string path)
     {
         if (!File.Exists(path))
@@ -36,7 +30,7 @@ public static class ConfigLoader
         CanaryConfig? config;
         try
         {
-            config = JsonSerializer.Deserialize<CanaryConfig>(json, SerializerOptions);
+            config = JsonSerializer.Deserialize(json, CanaryJsonContext.Default.CanaryConfig);
         }
         catch (JsonException ex)
         {

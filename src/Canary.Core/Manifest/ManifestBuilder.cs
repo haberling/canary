@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Canary.Core.Json;
 
 namespace Canary.Core.Manifest;
 
@@ -47,12 +48,6 @@ namespace Canary.Core.Manifest;
 // still builds and has a real URL, it just isn't surfaced in the nav tree.
 public static class ManifestBuilder
 {
-    private static readonly JsonSerializerOptions SerializerOptions = new()
-    {
-        WriteIndented = true,
-        PropertyNameCaseInsensitive = true,
-    };
-
     public static SiteManifest Build(string contentRoot, int navDepth = 1)
     {
         var nav = BuildNav(contentRoot, navDepth);
@@ -63,7 +58,7 @@ public static class ManifestBuilder
     {
         var manifest = Build(contentRoot, navDepth);
         var path = outputPath ?? Path.Combine(contentRoot, "manifest.json");
-        var json = JsonSerializer.Serialize(manifest, SerializerOptions);
+        var json = JsonSerializer.Serialize(manifest, CanaryJsonContext.Default.SiteManifest);
         File.WriteAllText(path, json + "\n");
         return manifest;
     }
@@ -197,7 +192,7 @@ public static class ManifestBuilder
         }
 
         var raw = File.ReadAllText(overridePath);
-        var config = JsonSerializer.Deserialize<NavOverride>(raw, SerializerOptions) ?? new NavOverride();
+        var config = JsonSerializer.Deserialize(raw, CanaryJsonContext.Default.NavOverride) ?? new NavOverride();
 
         if (!raw.Contains("\"nonav\""))
         {
@@ -209,7 +204,7 @@ public static class ManifestBuilder
 
     private static void WriteNavOverride(string path, NavOverride config)
     {
-        var json = JsonSerializer.Serialize(config, SerializerOptions);
+        var json = JsonSerializer.Serialize(config, CanaryJsonContext.Default.NavOverride);
         File.WriteAllText(path, json + "\n");
     }
 

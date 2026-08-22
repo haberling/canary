@@ -1,4 +1,14 @@
 <Solution>
+  <Configurations>
+    <Platform Name="Any CPU" />
+    <Platform Name="x64" />
+  </Configurations>
+  <Folder Name="/installer/">
+    <Project Path="installer/Canary.Installer.wixproj" Type="b7dd6f7e-def8-4e67-b5b7-07ef123db6f0">
+      <Platform Solution="Release|Any CPU" Project="x64" />
+      <Platform Solution="Debug|Any CPU" Project="x64" />
+    </Project>
+  </Folder>
   <Folder Name="/src/">
     <Project Path="src/Canary.Core/Canary.Core.csproj" />
     <Project Path="src/Canary/Canary.csproj" />

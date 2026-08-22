@@ -11,4 +11,42 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
+  <!--
+    Native AOT packaging (see PLAN.md's Distribution & consumption model).
+    RuntimeIdentifier/PublishAot only actually produce a native build under
+    `dotnet publish`; plain `dotnet build`/`dotnet run` for local dev are
+    unaffected (framework-dependent, portable IL, same as before). No
+    CultureInfo/culture-specific formatting anywhere in this codebase
+    (confirmed by grep before turning this on), so InvariantGlobalization is
+    a safe, standard AOT size reducer here.
+  -->
+  <PropertyGroup>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <PublishAot>true</PublishAot>
+    <InvariantGlobalization>true</InvariantGlobalization>
+  </PropertyGroup>
+
+  <!--
+    Stages runtime/dist, templates/default, and docs beside Canary.exe in
+    the publish output (what a real install needs), since ResolveRepoSubdir
+    in Program.cs looks beside the exe first before falling back to its
+    dev-only repo-walk. CopyToPublishDirectory only (no CopyToOutputDirectory),
+    so `dotnet build`/`dotnet run` keep reading the live repo copies via that
+    fallback instead of a snapshot that could go stale during development.
+  -->
+  <ItemGroup>
+    <Content Include="..\..\runtime\dist\**\*.*">
+      <Link>runtime\dist\%(RecursiveDir)%(Filename)%(Extension)</Link>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </Content>
+    <Content Include="..\..\templates\default\**\*.*">
+      <Link>templates\default\%(RecursiveDir)%(Filename)%(Extension)</Link>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </Content>
+    <Content Include="..\..\docs\**\*.*">
+      <Link>docs\%(RecursiveDir)%(Filename)%(Extension)</Link>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </Content>
+  </ItemGroup>
+
 </Project>
