@@ -7,9 +7,7 @@ A hand-rolled, no-framework static site engine: a TypeScript client router (real
 Canary is being split out of a private site project into a standalone, reusable engine. It's early — see the [docs site](https://canary.consoland.net) for guides, reference, and rationale.
 
 ## Status
-
-Pre-alpha. No public API yet; framework code is still being ported in from its origin project.
-
+Alpha is Live, and more importantly have websites in prod running it. More changes and improvements to come.
 ## License
 
 [MIT](LICENSE)
