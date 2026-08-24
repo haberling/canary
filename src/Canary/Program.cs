@@ -30,7 +30,7 @@ partial class Program
             case "init":
                 return RunInit(args);
             case "build":
-                return RunBuild(configPath);
+                return RunBuild(configPath, args);
             case "serve":
                 return RunServe(configPath, GetOption(args, "--port"));
             case "publish":
@@ -247,7 +247,7 @@ partial class Program
         }
     }
 
-    static int RunBuild(string configPath)
+    static int RunBuild(string configPath, string[] args)
     {
         CanaryConfig config;
         try
@@ -262,6 +262,26 @@ partial class Program
 
         var siteRoot = Path.GetDirectoryName(Path.GetFullPath(configPath))!;
         var runtimeDistDir = ResolveRepoSubdir("runtime", "dist");
+
+        if (HasFlag(args, "--clean"))
+        {
+            var outputRoot = Path.Combine(siteRoot, config.Output.Dir);
+            if (Directory.Exists(outputRoot))
+            {
+                // Default is No -- this is destructive and irreversible-by-
+                // Canary, unlike init's prompts which default toward
+                // convenience. A non-interactive invocation (Console.ReadLine()
+                // returns null) falls back to this same default, so a piped/
+                // CI caller never deletes anything without asking.
+                var confirmed = PromptYesNo($"About to delete {outputRoot} and everything in it before rebuilding. Continue?", false);
+                if (!confirmed)
+                {
+                    Console.WriteLine("Cancelled -- output directory left untouched.");
+                    return 1;
+                }
+                Directory.Delete(outputRoot, recursive: true);
+            }
+        }
 
         if (!RunOneBuild(config, siteRoot, runtimeDistDir, "Built"))
         {
@@ -704,7 +724,7 @@ partial class Program
         Console.WriteLine();
         Console.WriteLine("Commands:");
         Console.WriteLine("  init [path] [--config <path>] [--force]  Scaffold a new site into path (default .); --config pulls values from an existing canary.json instead of prompting; --force overwrites an existing project");
-        Console.WriteLine("  build [--config <path>]                Build the site once");
+        Console.WriteLine("  build [--config <path>] [--clean]      Build the site once; --clean deletes output.dir first (prompts to confirm, default No)");
         Console.WriteLine("  serve [--config <path>] [--port <n>]   Build, then serve output.dir locally, rebuilding on change (default port: canary.json's serve.port, normally 6913)");
         Console.WriteLine("  publish [--config <path>]              Build, then run canary.json's \"publish\" command (e.g. git add/commit/push for a git-served host)");
         Console.WriteLine("  docs [--force]                         Open Canary's own bundled documentation in a browser, on a random unused port in [9000, 9999]; if already open, says so and exits unless --force closes the existing one first");

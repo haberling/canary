@@ -167,7 +167,7 @@ public sealed class SiteBuilder
             throw new InvalidOperationException($"theme.shell file not found: {shellPath}");
         }
 
-        return File.ReadAllText(shellPath);
+        return Templating.TemplateComments.Strip(File.ReadAllText(shellPath));
     }
 
     private static string BuildWidgetScriptsHtml(IEnumerable<string> widgetNames) =>

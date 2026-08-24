@@ -20,7 +20,7 @@ public sealed class TemplateWidgetRenderer : IWidgetRenderer
 
     public string Render(string body)
     {
-        var template = File.ReadAllText(_templatePath);
+        var template = TemplateComments.Strip(File.ReadAllText(_templatePath));
         var data = YamlParser.Parse(body);
         return MustacheTemplate.Render(template, data);
     }
