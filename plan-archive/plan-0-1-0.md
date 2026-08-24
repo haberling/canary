@@ -1,4 +1,4 @@
-> **Complete, superseded by [plan-0-1-1](../plan-0-1-1.md).**
+> **Complete, superseded by [plan-0-2-0](../plan-0-2-0.md).**
 
 # Canary — Website Framework
 
