@@ -3,7 +3,7 @@ using Canary.Core.Shell;
 
 namespace Canary.Core.Publish;
 
-// Runs a site's configured `publish` command (canary.json's top-level
+// Runs a site's configured `publish` command (canary.jsonc's top-level
 // "publish" string) -- an arbitrary external command, same philosophy as
 // a toolchain tool: Canary doesn't know or care how a site is actually
 // hosted (git-served folder, rsync, FTP, ...), it just runs whatever the
@@ -34,7 +34,7 @@ public static class PublishRunner
         };
 
         // Lets a publish command reference the real build output location
-        // without having to hardcode/duplicate output.dir from canary.json.
+        // without having to hardcode/duplicate output.dir from canary.jsonc.
         psi.Environment["CANARY_OUTPUT_DIR"] = Path.GetFullPath(Path.Combine(siteRoot, outputDir));
 
         using var process = new Process { StartInfo = psi };

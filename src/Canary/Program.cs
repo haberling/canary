@@ -8,6 +8,7 @@ using Canary.Core.Config;
 using Canary.Core.Init;
 using Canary.Core.Publish;
 using Canary.Core.Serve;
+using Canary.Core.Toolchain;
 using Canary.Core.Widgets;
 
 namespace Canary;
@@ -23,7 +24,7 @@ partial class Program
         }
 
         var command = args[0];
-        var configPath = GetOption(args, "--config") ?? "canary.json";
+        var configPath = GetOption(args, "--config") ?? "canary.jsonc";
 
         switch (command)
         {
@@ -38,14 +39,16 @@ partial class Program
             case "docs":
                 return RunDocs(HasFlag(args, "--force"));
             case "widgets":
-                return RunWidgetsList(configPath);
-            case "widget":
-                if (args.Length < 2)
+                return args.Length > 1 && !args[1].StartsWith("--", StringComparison.Ordinal)
+                    ? RunWidgetShow(configPath, args[1])
+                    : RunWidgetsList(configPath);
+            case "tools":
+                if (args.Length < 2 || args[1] != "build")
                 {
-                    Console.Error.WriteLine("Usage: canary widget <name> [--config <path>]");
+                    Console.Error.WriteLine("Usage: canary tools build [<name>] [--config <path>]");
                     return 1;
                 }
-                return RunWidgetShow(configPath, args[1]);
+                return RunToolsBuild(configPath, args);
             default:
                 Console.Error.WriteLine($"Unknown command: {command}");
                 PrintUsage();
@@ -128,7 +131,7 @@ partial class Program
         {
             Console.WriteLine($"  warning: {warning}");
         }
-        Console.WriteLine($"Run `canary build --config {Path.Combine(targetDir, "canary.json")}` next.");
+        Console.WriteLine($"Run `canary build --config {Path.Combine(targetDir, "canary.jsonc")}` next.");
         return 0;
     }
 
@@ -263,6 +266,16 @@ partial class Program
         var siteRoot = Path.GetDirectoryName(Path.GetFullPath(configPath))!;
         var runtimeDistDir = ResolveRepoSubdir("runtime", "dist");
 
+        try
+        {
+            ToolRegistryCheck.Run(config.Tools, siteRoot);
+        }
+        catch (InvalidOperationException ex)
+        {
+            Console.Error.WriteLine(ex.Message);
+            return 1;
+        }
+
         if (HasFlag(args, "--clean"))
         {
             var outputRoot = Path.Combine(siteRoot, config.Output.Dir);
@@ -321,7 +334,7 @@ partial class Program
 
         if (string.IsNullOrWhiteSpace(config.Publish))
         {
-            Console.Error.WriteLine("No publish command configured. Add a top-level \"publish\" field to canary.json (e.g. a git add/commit/push one-liner for a git-served host) -- see PLAN.md's \"Publishing\" section.");
+            Console.Error.WriteLine("No publish command configured. Add a top-level \"publish\" field to canary.jsonc (e.g. a git add/commit/push one-liner for a git-served host) -- see PLAN.md's \"Publishing\" section.");
             return 1;
         }
 
@@ -340,9 +353,9 @@ partial class Program
         return 0;
     }
 
-    // `canary serve` does NOT re-read canary.json on every rebuild -- the
+    // `canary serve` does NOT re-read canary.jsonc on every rebuild -- the
     // site config is treated as fixed for the lifetime of a serve session.
-    // If you edit canary.json, restart the server. A deliberate v1 scope
+    // If you edit canary.jsonc, restart the server. A deliberate v1 scope
     // choice (see PLAN.md Phase 2), not an oversight: re-validating a config
     // that might now be broken mid-session, while still serving the last
     // good output, adds real complexity for a dev-only tool.
@@ -363,6 +376,19 @@ partial class Program
         var runtimeDistDir = ResolveRepoSubdir("runtime", "dist");
         var port = portOption != null ? int.Parse(portOption) : config.Serve.Port;
         var outputRoot = Path.Combine(siteRoot, config.Output.Dir);
+
+        // Once per serve session, not on every debounced rebuild below --
+        // an author actively editing a stale tool's source while serving
+        // shouldn't see the same warning repeat on every save.
+        try
+        {
+            ToolRegistryCheck.Run(config.Tools, siteRoot);
+        }
+        catch (InvalidOperationException ex)
+        {
+            Console.Error.WriteLine(ex.Message);
+            return 1;
+        }
 
         RunOneBuild(config, siteRoot, runtimeDistDir, "[build]");
 
@@ -469,7 +495,7 @@ partial class Program
         var docsDir = ResolveRepoSubdir("docs");
         if (docsDir == null)
         {
-            Console.Error.WriteLine("docs/ not found -- run `canary build --config docsite/canary.json` from a full Canary checkout first (see PLAN.md's Documentation site section).");
+            Console.Error.WriteLine("docs/ not found -- run `canary build --config docsite/canary.jsonc` from a full Canary checkout first (see PLAN.md's Documentation site section).");
             return 1;
         }
 
@@ -537,10 +563,10 @@ partial class Program
         }
     }
 
-    // Neither widget command reads canary.json at all -- they only need to
+    // Neither widget command reads canary.jsonc at all -- they only need to
     // know the site's directory (to find its own widgets/ folder alongside
     // the built-in ones), not anything the config actually says. So unlike
-    // build/serve, a site doesn't need a valid (or even present) canary.json
+    // build/serve, a site doesn't need a valid (or even present) canary.jsonc
     // for these to work.
     static int RunWidgetsList(string configPath)
     {
@@ -582,6 +608,76 @@ partial class Program
 
         Console.WriteLine(example);
         return 0;
+    }
+
+    // Precompiles every "tools" registry entry with a .cs Source (or just
+    // <name>'s, if given) via dotnet publish -- see ToolsBuildRunner and
+    // the 0.2.0 plan's "persistent toolchain-tool workers" section. A
+    // plain-string entry, or an object entry with no Source, is silently
+    // not "buildable" -- nothing to do for it, not an error.
+    static int RunToolsBuild(string configPath, string[] args)
+    {
+        CanaryConfig config;
+        try
+        {
+            config = ConfigLoader.Load(configPath);
+        }
+        catch (CanaryConfigException ex)
+        {
+            Console.Error.WriteLine(ex.Message);
+            return 1;
+        }
+
+        var siteRoot = Path.GetDirectoryName(Path.GetFullPath(configPath))!;
+        // args[0]/[1] are "tools"/"build"; the optional tool name (if any)
+        // is args[2], same "positional arg, then flags" convention as
+        // canary widgets <name>/RunInit's targetDir.
+        var name = args.Length > 2 && !args[2].StartsWith("--", StringComparison.Ordinal) ? args[2] : null;
+
+        List<KeyValuePair<string, ToolEntry>> toBuild;
+        if (name != null)
+        {
+            if (!config.Tools.TryGetValue(name, out var entry))
+            {
+                Console.Error.WriteLine($"No tool named '{name}' in canary.jsonc's \"tools\" registry.");
+                return 1;
+            }
+            if (entry.Source is null || !entry.Source.EndsWith(".cs", StringComparison.OrdinalIgnoreCase))
+            {
+                Console.Error.WriteLine($"Tool '{name}' has no buildable \".cs\" source -- nothing to build.");
+                return 1;
+            }
+            toBuild = [new(name, entry)];
+        }
+        else
+        {
+            toBuild = config.Tools
+                .Where(kv => kv.Value.Source != null && kv.Value.Source.EndsWith(".cs", StringComparison.OrdinalIgnoreCase))
+                .ToList();
+            if (toBuild.Count == 0)
+            {
+                Console.WriteLine("No buildable tools found (no \"tools\" registry entry has a \".cs\" source).");
+                return 0;
+            }
+        }
+
+        var failed = false;
+        foreach (var (toolName, entry) in toBuild)
+        {
+            Console.WriteLine($"Building '{toolName}' from {entry.Source} -> {entry.Command} ...");
+            try
+            {
+                ToolsBuildRunner.Build(entry.Source!, entry.Command, siteRoot);
+                Console.WriteLine("  done.");
+            }
+            catch (InvalidOperationException ex)
+            {
+                Console.Error.WriteLine($"  failed: {ex.Message}");
+                failed = true;
+            }
+        }
+
+        return failed ? 1 : 0;
     }
 
     static bool RunOneBuild(CanaryConfig config, string siteRoot, string? runtimeDistDir, string label, IReadOnlySet<string>? changedPaths = null)
@@ -723,12 +819,12 @@ partial class Program
         Console.WriteLine("Usage: canary <command> [options]");
         Console.WriteLine();
         Console.WriteLine("Commands:");
-        Console.WriteLine("  init [path] [--config <path>] [--force]  Scaffold a new site into path (default .); --config pulls values from an existing canary.json instead of prompting; --force overwrites an existing project");
+        Console.WriteLine("  init [path] [--config <path>] [--force]  Scaffold a new site into path (default .); --config pulls values from an existing canary.jsonc instead of prompting; --force overwrites an existing project");
         Console.WriteLine("  build [--config <path>] [--clean]      Build the site once; --clean deletes output.dir first (prompts to confirm, default No)");
-        Console.WriteLine("  serve [--config <path>] [--port <n>]   Build, then serve output.dir locally, rebuilding on change (default port: canary.json's serve.port, normally 6913)");
-        Console.WriteLine("  publish [--config <path>]              Build, then run canary.json's \"publish\" command (e.g. git add/commit/push for a git-served host)");
+        Console.WriteLine("  serve [--config <path>] [--port <n>]   Build, then serve output.dir locally, rebuilding on change (default port: canary.jsonc's serve.port, normally 6913)");
+        Console.WriteLine("  publish [--config <path>]              Build, then run canary.jsonc's \"publish\" command (e.g. git add/commit/push for a git-served host)");
         Console.WriteLine("  docs [--force]                         Open Canary's own bundled documentation in a browser, on a random unused port in [9000, 9999]; if already open, says so and exits unless --force closes the existing one first");
-        Console.WriteLine("  widgets [--config <path>]              List discovered widgets (built-in + site-authored)");
-        Console.WriteLine("  widget <name> [--config <path>]        Print that widget's clipboard usage example");
+        Console.WriteLine("  widgets [<name>] [--config <path>]     List discovered widgets, or print one widget's clipboard usage example");
+        Console.WriteLine("  tools build [<name>] [--config <path>] Precompile \"tools\" registry entries with a \"source\" field via dotnet publish (Native AOT)");
     }
 }

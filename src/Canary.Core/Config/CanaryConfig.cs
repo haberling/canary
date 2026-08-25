@@ -11,10 +11,15 @@ public sealed class CanaryConfig
     public NavConfig Nav { get; set; } = new();
     public ServeConfig Serve { get; set; } = new();
 
-    // name -> shell command. Definition only -- application (which pages a
+    // name -> tool entry. Definition only -- application (which pages a
     // tool runs on) lives per-directory in .toolchain.json, not here. See
-    // PLAN.md's "Content toolchain" section.
-    public Dictionary<string, string> Tools { get; set; } = new();
+    // PLAN.md's "Content toolchain" section. A JSON value here can be a
+    // bare command string (ToolEntry.Source stays null) or an object with
+    // "command"/"source" fields, opting into `canary tools build`
+    // precompilation -- see ToolEntry and Json.CanaryJsonContext's
+    // ToolEntryJsonConverter, and the 0.2.0 plan's "persistent
+    // toolchain-tool workers" section.
+    public Dictionary<string, ToolEntry> Tools { get; set; } = new();
 
     // A single arbitrary external command, run by `canary publish` after a
     // fresh build. Optional and not validated -- Canary doesn't know or
@@ -28,7 +33,7 @@ public sealed class CanaryConfig
     // `canary init` runs against the same directory to refuse silently
     // overwriting an existing project without --force. An explicit,
     // self-documenting marker rather than inferring "already a project"
-    // from canary.json's mere existence -- see PLAN.md's "Scaffolding"
+    // from canary.jsonc's mere existence -- see PLAN.md's "Scaffolding"
     // section. Not validated by ConfigLoader, not read anywhere in the
     // build/serve pipeline.
     public bool Initialized { get; set; }

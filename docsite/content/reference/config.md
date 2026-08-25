@@ -1,4 +1,4 @@
-# canary.json
+# canary.jsonc
 
 Lives at a site's root. JSON, one config per environment — no dev/prod split, nav and routes are always derived from `content.root` plus the generated manifest, never redeclared here.
 
@@ -24,7 +24,7 @@ Lives at a site's root. JSON, one config per environment — no dev/prod split, 
 
 ## `content`
 
-- `root` — required. The directory (relative to `canary.json`) holding your markdown content.
+- `root` — required. The directory (relative to `canary.jsonc`) holding your markdown content.
 
 ## `output`
 
@@ -57,7 +57,7 @@ See [Guide → Widgets](../guide/widgets).
 
 ## `tools`
 
-A name-to-shell-command map, the central registry a `.toolchain.json` in any content directory can reference by name. See [Guide → Content Toolchain](../guide/toolchain).
+A name-to-command map, the central registry a `.toolchain.json` in any content directory can reference by name. A value is either a bare shell command string (`"breadcrumb": "tools/breadcrumb.sh"`), or an object opting a C# tool into precompilation: `"curtain": { "command": "tools/bin/curtain.exe", "source": "tools/curtain.cs" }`. See [Guide → Content Toolchain](../guide/toolchain) for the full picture, including `canary tools build`.
 
 ## `publish`
 

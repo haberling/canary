@@ -57,7 +57,7 @@
       "path": "reference",
       "children": [
         {
-          "title": "canary.json",
+          "title": "canary.jsonc",
           "path": "reference/config",
           "children": null
         },

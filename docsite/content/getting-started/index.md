@@ -26,15 +26,15 @@ Prefer Canary's built-in widgets over local copies? [y/N]:
 
 Site name and Base URL are the only two required fields — everything else has a sensible default. The serve port default is randomly generated per run (in `[6500, 7000)`) specifically so two projects scaffolded close together don't collide the moment both are served at once.
 
-`init` refuses to touch a directory that already has a `canary.json` in it, unless you pass `--force`. See [Project Layout](project-layout) for exactly what gets written.
+`init` refuses to touch a directory that already has a `canary.jsonc` in it, unless you pass `--force`. See [Project Layout](project-layout) for exactly what gets written.
 
 ## 2. Serve it locally
 
 ```
-dotnet run --project src/Canary -- serve --config my-site/canary.json
+dotnet run --project src/Canary -- serve --config my-site/canary.jsonc
 ```
 
-This builds once, starts a local dev server (`http://localhost:<port>/`, the port from step 1 or `canary.json`'s `serve.port`, overridable with `--port`), and watches for changes. Editing a page's own markdown triggers a fast, targeted rebuild of just that page; anything else (a new/deleted page, a widget, a theme file) falls back to a full rebuild.
+This builds once, starts a local dev server (`http://localhost:<port>/`, the port from step 1 or `canary.jsonc`'s `serve.port`, overridable with `--port`), and watches for changes. Editing a page's own markdown triggers a fast, targeted rebuild of just that page; anything else (a new/deleted page, a widget, a theme file) falls back to a full rebuild.
 
 ## 3. Make an edit
 
@@ -43,9 +43,9 @@ Open `my-site/content/index.md` in an editor and change something — the runnin
 ## 4. Build for real, and publish
 
 ```
-dotnet run --project src/Canary -- build --config my-site/canary.json
+dotnet run --project src/Canary -- build --config my-site/canary.jsonc
 ```
 
 writes the finished static site to `output.dir` (`docs/` by default — GitHub Pages' "serve from `/docs` on `main`" convention). For a git-served host, committing and pushing that folder *is* the deploy step. If you'd rather Canary run that step for you, see [Publishing](../guide/publishing).
 
-**Next:** [Project Layout](project-layout) for what `init` scaffolds, or [Reference → canary.json](../reference/config) for every config field.
+**Next:** [Project Layout](project-layout) for what `init` scaffolds, or [Reference → canary.jsonc](../reference/config) for every config field.

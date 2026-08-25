@@ -2,7 +2,7 @@
 
 For a git-served static host like GitHub Pages, `canary build` writing to `output.dir` (`docs/` by default) *is* the entire deploy story — you commit and push that folder yourself, no special Canary step needed.
 
-If you'd rather Canary run that last step for you, set a top-level `publish` field in `canary.json`: a single arbitrary shell command, not a deploy-target abstraction. Canary doesn't know or want to know how your site is actually hosted — it doesn't understand git, FTP, or rsync, and never will. It just runs whatever you tell it to.
+If you'd rather Canary run that last step for you, set a top-level `publish` field in `canary.jsonc`: a single arbitrary shell command, not a deploy-target abstraction. Canary doesn't know or want to know how your site is actually hosted — it doesn't understand git, FTP, or rsync, and never will. It just runs whatever you tell it to.
 
 ```
 { "publish": "git add docs && git commit -m \"Publish\" && git push" }
@@ -12,7 +12,7 @@ If you'd rather Canary run that last step for you, set a top-level `publish` fie
 
 ## `CANARY_OUTPUT_DIR`
 
-The one environment variable a publish command gets: the absolute path to `output.dir`, so you can reference the real build output location without hardcoding or duplicating a directory name that's already declared elsewhere in `canary.json`. There's no per-page context here (unlike a toolchain tool) — publishing is a whole-site action, not a per-page one.
+The one environment variable a publish command gets: the absolute path to `output.dir`, so you can reference the real build output location without hardcoding or duplicating a directory name that's already declared elsewhere in `canary.jsonc`. There's no per-page context here (unlike a toolchain tool) — publishing is a whole-site action, not a per-page one.
 
 ## Live output
 

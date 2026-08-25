@@ -6,7 +6,7 @@ Tools only ever run at build time, never in the browser — a tool is an arbitra
 
 ## Two separate pieces
 
-**Definition** — a `tools` map in `canary.json` (name to shell command), one central registry:
+**Definition** — a `tools` map in `canary.jsonc` (name to shell command), one central registry:
 
 ```
 "tools": {
@@ -38,6 +38,27 @@ Every tool's process gets two:
 
 ## Writing a script
 
-A tool can be any executable command — the example scaffolded by `canary init` (`tools/example.cs`, run via `dotnet run tools/example.cs`) is a working, do-nothing passthrough: it reads stdin, writes it back to stdout unchanged, and writes the two environment variables above to stderr just to demonstrate they're there. Copy or rename it as a real starting point.
+A tool can be any executable command — `canary init` scaffolds two working examples to make that concrete, not just claim it. `tools/curtain.cs` (C#, run via `dotnet run tools/curtain.cs`) is a do-nothing passthrough: it reads stdin, writes it back to stdout unchanged, and writes the two environment variables above to stderr just to demonstrate they're there. `tools/reading-time.ps1` (PowerShell, run via `powershell -NoProfile -ExecutionPolicy Bypass -File tools/reading-time.ps1`) is a real, non-trivial one -- it counts words and inserts a reading-time badge after the page's first heading. Unlike C#, PowerShell (specifically `powershell.exe`, not `pwsh`) ships with every supported Windows install, so it needs nothing installed beyond Windows itself -- worth knowing if you want a tool that doesn't depend on whoever clones the repo having a .NET SDK. Copy or rename either as a real starting point.
 
 **Always give a local script command an explicit path** (`tools/foo.cmd`, not a bare `foo.cmd`) — a bare filename with no path separator can silently fail to resolve on Windows machines with the `NoDefaultCurrentDirectoryInExePath` security setting enabled. Every tool command Canary itself ships already follows this rule.
+
+## Precompiling a C# tool
+
+A C# tool registered the normal way (`"curtain": "dotnet run tools/curtain.cs"`) pays the full cost of starting the CLR and JIT-compiling the script on *every single page* it runs on, every build. For a tool used across many pages, that adds up. Opt a tool into precompilation by switching its registry entry from a string to an object:
+
+```
+"tools": {
+  "reading-time": "tools/reading-time.ps1",
+  "curtain": { "command": "tools/bin/curtain.exe", "source": "tools/curtain.cs" }
+}
+```
+
+`command` means exactly what it always meant — the thing that actually runs, unchanged. `source` is new: the `.cs` file `command` gets built from. Nothing else changes about how you write the tool itself — it's still a plain file-based C# app (top-level statements, no `.csproj`) reading stdin and writing stdout, the same contract every tool already follows. `command`'s filename doesn't need to match `source`'s — name it whatever you want.
+
+Run `canary tools build` to compile every tool with a `source` field (or `canary tools build <name>` for just one). This runs `dotnet publish` targeting Native AOT — not a framework-dependent build — so the result is a single standalone native executable with no .NET runtime dependency at the machine running `canary build` later, and none of the CLR startup/JIT cost on every invocation. Needs a working Native AOT toolchain (the same one publishing Canary itself needs) on whatever machine runs `canary tools build`.
+
+If a tool needs a NuGet package, use .NET's file-based-app `#:package Name@Version` directive at the top of the `.cs` file — `dotnet publish` already understands it, nothing Canary-specific required.
+
+**AOT trims aggressively and has no runtime reflection.** A tool using reflection-based `System.Text.Json` (not source-generated) or similar could behave differently precompiled than it did under `dotnet run`. Not a concern for the kind of small, straightforward text transform a toolchain tool is meant to be, but worth knowing if something works unbuilt and breaks once precompiled.
+
+`canary build` checks every precompiled tool once per run: if `command`'s binary is missing entirely, the build fails with a message telling you to run `canary tools build <name>`. If `source` has been edited more recently than `command` was last built, the build prints a warning and proceeds anyway using the existing binary — never a hard stop, just a heads-up that you probably meant to rebuild.

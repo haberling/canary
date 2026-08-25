@@ -11,6 +11,6 @@
   },
   "tools": {
     "reading-time": "powershell -NoProfile -ExecutionPolicy Bypass -File tools/reading-time.ps1",
-    "curtain": "dotnet run tools/curtain.cs"
+    "curtain": { "command": "tools/bin/curtain.exe", "source": "tools/curtain.cs" }
   }
 }

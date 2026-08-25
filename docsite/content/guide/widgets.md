@@ -2,7 +2,7 @@
 
 A widget is a fenced code block in markdown whose body is YAML, rendered through a template at build time — not a shortcode with ad-hoc syntax, real YAML filling a real Mustache template. Three ship built in: `downloads` (a list of download links and/or copy-paste install commands), `slideshow` (an image slideshow with captions), and `code` (an escaped, verbatim code block — the one used throughout this page to show the other two).
 
-Run `canary widget <name>` against a project to print any widget's ready-to-paste usage example straight from its own source — the canonical copy, not a doc snippet that can drift out of sync. `canary widgets` lists every widget name Canary can currently find for your project (built-in plus your own).
+Run `canary widgets <name>` against a project to print any widget's ready-to-paste usage example straight from its own source — the canonical copy, not a doc snippet that can drift out of sync. `canary widgets` with no name lists every widget Canary can currently find for your project (built-in plus your own).
 
 ## `downloads`
 

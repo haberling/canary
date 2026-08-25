@@ -1,6 +1,6 @@
 # Render Modes
 
-`renderMode` in `canary.json` is `hybrid` or `static`. Both modes prerender every route to real static HTML at build time — markdown is never shipped to or parsed by the browser in either one. What differs is **how in-app navigation happens** once a page has loaded, not how much JavaScript runs (nav population and widgets run as page-enhancement JS either way).
+`renderMode` in `canary.jsonc` is `hybrid` or `static`. Both modes prerender every route to real static HTML at build time — markdown is never shipped to or parsed by the browser in either one. What differs is **how in-app navigation happens** once a page has loaded, not how much JavaScript runs (nav population and widgets run as page-enhancement JS either way).
 
 ## `hybrid`
 

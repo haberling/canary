@@ -4,9 +4,9 @@
 
 Check whether the command is a bare filename with no path separator (e.g. `publish.cmd` instead of `tools/publish.cmd` or `./publish.cmd`). On a machine with the `NoDefaultCurrentDirectoryInExePath` Windows security setting enabled, a bare filename silently fails to resolve. A path with a separator bypasses that lookup entirely and always works. Always write local script commands with an explicit path.
 
-## I edited canary.json while `canary serve` was running and nothing changed
+## I edited canary.jsonc while `canary serve` was running and nothing changed
 
-Expected — `canary serve` treats the config as fixed for the lifetime of the session and doesn't re-read it on every rebuild. Restart the server after editing `canary.json`.
+Expected — `canary serve` treats the config as fixed for the lifetime of the session and doesn't re-read it on every rebuild. Restart the server after editing `canary.jsonc`.
 
 ## My widget's `url`/`src` value is broken on any page except the home page
 

@@ -1,13 +1,4 @@
-<!--
-  Canary default shell template. Stamped onto every generated page (see
-  PLAN.md's "Chrome is unconditionally re-stamped every build" decision).
-  Placeholder contract is documented in Canary.Core.Build.PageBuilder, not
-  here -- deliberately: writing the literal placeholder syntax in this
-  comment would make the build's own string-replace match it too.
 
-  Nav stays populated client-side from /content/manifest.json (loadNav(), see
-  PLAN.md) -- this template doesn't render nav markup itself.
--->
 <!doctype html>
 <html lang="en">
 <head>
@@ -28,17 +19,17 @@
       <a class="site-title" href="/"><img class="site-logo" src="/img/logo.svg" alt="">Canary</a>
     </div>
     <nav id="site-nav" class="site-nav">
-      <!-- populated client-side from /content/manifest.json via loadNav() -->
+      
     </nav>
   </header>
 
   <main id="app"><h1>Publishing</h1>
 <p>For a git-served static host like GitHub Pages, <code>canary build</code> writing to <code>output.dir</code> (<code>docs/</code> by default) <em>is</em> the entire deploy story — you commit and push that folder yourself, no special Canary step needed.</p>
-<p>If you'd rather Canary run that last step for you, set a top-level <code>publish</code> field in <code>canary.json</code>: a single arbitrary shell command, not a deploy-target abstraction. Canary doesn't know or want to know how your site is actually hosted — it doesn't understand git, FTP, or rsync, and never will. It just runs whatever you tell it to.</p>
+<p>If you'd rather Canary run that last step for you, set a top-level <code>publish</code> field in <code>canary.jsonc</code>: a single arbitrary shell command, not a deploy-target abstraction. Canary doesn't know or want to know how your site is actually hosted — it doesn't understand git, FTP, or rsync, and never will. It just runs whatever you tell it to.</p>
 <pre><code>{ "publish": "git add docs &amp;&amp; git commit -m \"Publish\" &amp;&amp; git push" }</code></pre>
 <p><code>canary publish</code> always builds first — publishing stale output would be worse than refusing to publish at all — then runs the configured command. If <code>publish</code> isn't set, it fails with a clear message rather than doing nothing silently.</p>
 <h2><code>CANARY_OUTPUT_DIR</code></h2>
-<p>The one environment variable a publish command gets: the absolute path to <code>output.dir</code>, so you can reference the real build output location without hardcoding or duplicating a directory name that's already declared elsewhere in <code>canary.json</code>. There's no per-page context here (unlike a toolchain tool) — publishing is a whole-site action, not a per-page one.</p>
+<p>The one environment variable a publish command gets: the absolute path to <code>output.dir</code>, so you can reference the real build output location without hardcoding or duplicating a directory name that's already declared elsewhere in <code>canary.jsonc</code>. There's no per-page context here (unlike a toolchain tool) — publishing is a whole-site action, not a per-page one.</p>
 <h2>Live output</h2>
 <p>A publish command's output streams to your terminal live as it runs, not buffered and dumped after the fact — the whole point of something like <code>git push</code>'s progress output is watching it happen.</p>
 <h2>The bare-filename gotcha</h2>

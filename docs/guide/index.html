@@ -1,13 +1,4 @@
-<!--
-  Canary default shell template. Stamped onto every generated page (see
-  PLAN.md's "Chrome is unconditionally re-stamped every build" decision).
-  Placeholder contract is documented in Canary.Core.Build.PageBuilder, not
-  here -- deliberately: writing the literal placeholder syntax in this
-  comment would make the build's own string-replace match it too.
 
-  Nav stays populated client-side from /content/manifest.json (loadNav(), see
-  PLAN.md) -- this template doesn't render nav markup itself.
--->
 <!doctype html>
 <html lang="en">
 <head>
@@ -28,7 +19,7 @@
       <a class="site-title" href="/"><img class="site-logo" src="/img/logo.svg" alt="">Canary</a>
     </div>
     <nav id="site-nav" class="site-nav">
-      <!-- populated client-side from /content/manifest.json via loadNav() -->
+      
     </nav>
   </header>
 

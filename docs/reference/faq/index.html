@@ -1,13 +1,4 @@
-<!--
-  Canary default shell template. Stamped onto every generated page (see
-  PLAN.md's "Chrome is unconditionally re-stamped every build" decision).
-  Placeholder contract is documented in Canary.Core.Build.PageBuilder, not
-  here -- deliberately: writing the literal placeholder syntax in this
-  comment would make the build's own string-replace match it too.
 
-  Nav stays populated client-side from /content/manifest.json (loadNav(), see
-  PLAN.md) -- this template doesn't render nav markup itself.
--->
 <!doctype html>
 <html lang="en">
 <head>
@@ -28,15 +19,15 @@
       <a class="site-title" href="/"><img class="site-logo" src="/img/logo.svg" alt="">Canary</a>
     </div>
     <nav id="site-nav" class="site-nav">
-      <!-- populated client-side from /content/manifest.json via loadNav() -->
+      
     </nav>
   </header>
 
   <main id="app"><h1>FAQ</h1>
 <h2>A publish or toolchain command that should work just silently fails on Windows</h2>
 <p>Check whether the command is a bare filename with no path separator (e.g. <code>publish.cmd</code> instead of <code>tools/publish.cmd</code> or <code>./publish.cmd</code>). On a machine with the <code>NoDefaultCurrentDirectoryInExePath</code> Windows security setting enabled, a bare filename silently fails to resolve. A path with a separator bypasses that lookup entirely and always works. Always write local script commands with an explicit path.</p>
-<h2>I edited canary.json while <code>canary serve</code> was running and nothing changed</h2>
-<p>Expected — <code>canary serve</code> treats the config as fixed for the lifetime of the session and doesn't re-read it on every rebuild. Restart the server after editing <code>canary.json</code>.</p>
+<h2>I edited canary.jsonc while <code>canary serve</code> was running and nothing changed</h2>
+<p>Expected — <code>canary serve</code> treats the config as fixed for the lifetime of the session and doesn't re-read it on every rebuild. Restart the server after editing <code>canary.jsonc</code>.</p>
 <h2>My widget's <code>url</code>/<code>src</code> value is broken on any page except the home page</h2>
 <p>You need the explicit <code>!url</code> YAML tag on that value (<code>url: !url "content/games/manual.pdf"</code>) — see <a href="/../guide/widgets">Guide → Widgets</a>. A plain value with no tag is used exactly as written, which only works if it's already an absolute <code>https://</code> URL.</p>
 <h2>Can I use markdown tables?</h2>

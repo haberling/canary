@@ -1,6 +1,6 @@
 namespace Canary.Core.Shell;
 
-// Resolves an arbitrary command string (a canary.json "tools"/"publish"
+// Resolves an arbitrary command string (a canary.jsonc "tools"/"publish"
 // entry) into the actual FileName/Arguments a Process should start with.
 // Shared between Canary.Core.Toolchain.ToolchainRunner and
 // Canary.Core.Publish.PublishRunner so the cmd.exe quoting fix below only
@@ -8,25 +8,45 @@ namespace Canary.Core.Shell;
 public static class ShellCommand
 {
     // Found via a real test failure, not by inspection -- cmd.exe's own
-    // command-line quoting is famously two bugs deep. Plain `/c command`
-    // breaks the instant the command contains a forward slash (cmd's
-    // switch parser keeps scanning past /c for more "/x"-shaped switches,
-    // so "tools/breadcrumb.sh" gets misread as a second switch,
-    // "/breadcrumb.sh"). Simply quoting it (`/c "command"`) doesn't fix
-    // that either: cmd only preserves the quotes as part of the command
-    // text under a specific set of conditions (see `cmd /?`), one of which
-    // requires whitespace *inside* the quoted string -- a single bare path
-    // like "tools/breadcrumb.sh" has none, so cmd falls back to stripping
-    // the quotes and we're right back to the broken unquoted case.
-    // Prefixing with `call ` (`/c "call tools/breadcrumb.sh"`) reliably
-    // satisfies that whitespace condition regardless of what the actual
-    // command looks like, and is a safe no-op prefix for both batch files
-    // and ordinary executables -- verified empirically (including that
-    // exit codes still propagate correctly) before landing this.
+    // command-line quoting is famously two bugs deep, and it turns out to
+    // be three. Plain `/c command` breaks the instant the command contains
+    // a forward slash (cmd's switch parser keeps scanning past /c for more
+    // "/x"-shaped switches, so "tools/breadcrumb.sh" gets misread as a
+    // second switch, "/breadcrumb.sh"). Simply quoting it (`/c "command"`)
+    // doesn't fix that either: cmd only preserves the quotes as part of
+    // the command text under a specific set of conditions (see `cmd /?`),
+    // one of which requires whitespace *inside* the quoted string -- a
+    // single bare path like "tools/breadcrumb.sh" has none, so cmd falls
+    // back to stripping the quotes and we're right back to the broken
+    // unquoted case. Prefixing with `call ` (`/c "call tools/breadcrumb.sh"`)
+    // satisfies that whitespace condition and is a safe no-op prefix for
+    // both batch files and ordinary executables -- but only actually fixes
+    // the forward-slash misparse for a .cmd/.bat target: `call` hands a
+    // batch file off to cmd's own internal batch-processing subsystem,
+    // which doesn't re-trip the "/" switch-scanning bug, but a non-batch
+    // target (a precompiled tool's .exe, say) falls through to a plain
+    // external-command dispatch that does. Confirmed empirically: `call
+    // tools/bin/x.exe` (no arguments) still fails with cmd misreading
+    // "tools" as the whole command; `call "tools/bin/x.exe"` -- quoting
+    // just that one token -- works. Quoting the *entire* command instead
+    // of just its first token breaks every multi-word command (cmd then
+    // treats the whole quoted string, spaces included, as one literal,
+    // nonexistent filename) -- confirmed both for a plain multi-word
+    // command and for a forward-slash .exe with a trailing argument, so
+    // QuoteFirstToken below only ever quotes the program/path itself,
+    // never anything after its first space.
     public static (string FileName, string Arguments) Resolve(string command) =>
         OperatingSystem.IsWindows()
-            ? ("cmd.exe", $"/c \"call {command}\"")
+            ? ("cmd.exe", $"/c \"call {QuoteFirstToken(command)}\"")
             : ("/bin/sh", $"-c \"{command.Replace("\"", "\\\"")}\"");
+
+    private static string QuoteFirstToken(string command)
+    {
+        var spaceIndex = command.IndexOf(' ');
+        return spaceIndex < 0
+            ? $"\"{command}\""
+            : $"\"{command[..spaceIndex]}\"{command[spaceIndex..]}";
+    }
 
     // A caveat this class can't fix, only document -- found the same way
     // as everything above, by a real command that should have worked

@@ -8,7 +8,7 @@ There's no cache to hit or miss — markdown rendering and any applicable toolch
 
 ## `canary serve` gets its speed a different way
 
-Full re-rendering on every save would make local dev noticeably slower on a large site, so `canary serve` takes a different path: it tracks which file(s) changed during its debounce window. If every changed file is a plain edit to an existing page's own markdown source, only that page gets re-rendered. Anything else — a page created, deleted, or renamed, or a non-content change (a widget, a tool script, a theme file, `canary.json` itself) — falls back to rendering every page, since those could affect more than one page and Canary isn't going to guess which ones.
+Full re-rendering on every save would make local dev noticeably slower on a large site, so `canary serve` takes a different path: it tracks which file(s) changed during its debounce window. If every changed file is a plain edit to an existing page's own markdown source, only that page gets re-rendered. Anything else — a page created, deleted, or renamed, or a non-content change (a widget, a tool script, a theme file, `canary.jsonc` itself) — falls back to rendering every page, since those could affect more than one page and Canary isn't going to guess which ones.
 
 Site-wide bookkeeping (the manifest, `.toolchain.json` auto-creation, sitemap/robots, asset copies) always runs in full regardless of which path was taken — it's cheap, and skipping it risks the nav tree or sitemap going stale.
 

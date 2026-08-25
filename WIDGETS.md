@@ -17,7 +17,7 @@ There is no fourth piece, no C# class to write, no registration step. `Canary.Co
 ## Step by step: adding a new widget
 
 1. **Pick a name** — this becomes both the filename and the fence tag. Say you're building a `callout` widget.
-2. **Create `widgets/callout.html`** in your site root (next to `content/`, `canary.json`, etc.) — create the `widgets/` folder if it doesn't exist yet. Write it as a plain Mustache template (see syntax below).
+2. **Create `widgets/callout.html`** in your site root (next to `content/`, `canary.jsonc`, etc.) — create the `widgets/` folder if it doesn't exist yet. Write it as a plain Mustache template (see syntax below).
 3. **(Optional) create `widgets/callout.js`** alongside it, if the widget needs any client-side interactivity (click handlers, etc.).
 4. **(Optional) create `widgets/callout.css`** alongside it, if the widget needs its own styling.
 5. **Use it in content** — any `.md` file can now write:
@@ -37,7 +37,7 @@ That's the whole workflow. The rest of this doc is reference material for steps 
 `WidgetDiscovery.Discover` looks in two places, one file extension at a time (`*.html` for templates, `*.js` for behavior scripts, `*.css` for styling):
 
 - **Built-in**: `runtime/widgets/` in the Canary repo itself (source), copied unchanged to `runtime/dist/widgets/` as part of Canary's own build — `downloads` and `slideshow` (each with an `.html`, `.js`, and `.css`) live here today.
-- **Site-authored**: `<siteRoot>/widgets/` — a `widgets/` folder next to your site's `canary.json`.
+- **Site-authored**: `<siteRoot>/widgets/` — a `widgets/` folder next to your site's `canary.jsonc`.
 
 **Site-authored wins on a filename collision.** If your site has its own `widgets/downloads.html`, it's used instead of the built-in one, no config flag needed. (The `widgets.preferBuiltIn` config field is meant to flip that precedence back — it's schema-only right now, not wired up to `WidgetDiscovery` yet.)
 
@@ -143,10 +143,10 @@ Your widget's CSS can reference the site's own color tokens (`--bg`, `--bg-eleva
 
 Don't reach into the site's own `framework.css`/`theme.css` to style your widget, even though nothing stops you technically — that file is the site's own base layer, not a place for a specific widget's rules to live. Keep every widget fully self-contained across all three of its files, same reasoning as everything else in this doc.
 
-## Checking your work: `canary widgets` / `canary widget <name>`
+## Checking your work: `canary widgets [<name>]`
 
 - **`canary widgets [--config <path>]`** — lists every discovered widget name (built-in + site-authored), sorted. Confirms your new widget was actually found before you go debug a fence tag typo.
-- **`canary widget <name> [--config <path>]`** — prints that widget's ready-to-paste usage example. This is pulled straight from a `<!--clipboard ... -->` comment block inside the widget's own `.html` file — **include one when you write a new widget**, so anyone (human or another Claude instance) can look up correct usage without reading your template source:
+- **`canary widgets <name> [--config <path>]`** — prints that widget's ready-to-paste usage example. This is pulled straight from a `<!--clipboard ... -->` comment block inside the widget's own `.html` file — **include one when you write a new widget**, so anyone (human or another Claude instance) can look up correct usage without reading your template source:
 
   ````html
   <!--clipboard
@@ -157,7 +157,7 @@ Don't reach into the site's own `framework.css`/`theme.css` to style your widget
   -->
   ````
 
-  Print-only, not real OS clipboard access (no cross-platform clipboard API in .NET) — pipe it yourself if you want it on your clipboard (`canary widget callout | pbcopy` etc.).
+  Print-only, not real OS clipboard access (no cross-platform clipboard API in .NET) — pipe it yourself if you want it on your clipboard (`canary widgets callout | pbcopy` etc.).
 
 ## Incremental builds do see widget edits
 

@@ -23,14 +23,14 @@ public class SiteBuilderToolchainTests : IDisposable
         }
     }
 
-    private CanaryConfig NewConfig(Dictionary<string, string>? tools = null) => new()
+    private CanaryConfig NewConfig(Dictionary<string, ToolEntry>? tools = null) => new()
     {
         Site = new SiteConfig { Name = "Test Site", BaseUrl = "https://example.com" },
         Content = new ContentConfig { Root = "content" },
         Output = new OutputConfig { Dir = "docs" },
         RenderMode = RenderMode.Hybrid,
         Theme = new ThemeConfig { Shell = "shell.html" },
-        Tools = tools ?? new Dictionary<string, string>(),
+        Tools = tools ?? new Dictionary<string, ToolEntry>(),
     };
 
     // Windows batch script that passes markdown through unchanged then
@@ -61,7 +61,7 @@ public class SiteBuilderToolchainTests : IDisposable
         File.WriteAllText(Path.Combine(_siteRoot, "content", "games", ".toolchain.json"), """{ "tools": ["env-echo"] }""");
         File.WriteAllText(Path.Combine(_siteRoot, "content", "games", "tesselate.md"), "# Tesselate\nBody.");
 
-        new SiteBuilder().Build(NewConfig(new Dictionary<string, string> { ["env-echo"] = "tools/env-echo.cmd" }), _siteRoot);
+        new SiteBuilder().Build(NewConfig(new Dictionary<string, ToolEntry> { ["env-echo"] = new ToolEntry("tools/env-echo.cmd") }), _siteRoot);
 
         var html = File.ReadAllText(Path.Combine(_siteRoot, "docs", "games", "tesselate", "index.html"));
         Assert.Contains("ROUTE=games/tesselate", html);
@@ -79,7 +79,7 @@ public class SiteBuilderToolchainTests : IDisposable
         File.WriteAllText(Path.Combine(_siteRoot, "content", ".toolchain.json"), """{ "tools": ["breadcrumb"] }""");
         File.WriteAllText(Path.Combine(_siteRoot, "content", "index.md"), "# Home\nBody text.");
 
-        new SiteBuilder().Build(NewConfig(new Dictionary<string, string> { ["breadcrumb"] = "tools/breadcrumb.cmd" }), _siteRoot);
+        new SiteBuilder().Build(NewConfig(new Dictionary<string, ToolEntry> { ["breadcrumb"] = new ToolEntry("tools/breadcrumb.cmd") }), _siteRoot);
 
         var html = File.ReadAllText(Path.Combine(_siteRoot, "docs", "index.html"));
         Assert.Contains("Body text.", html);
@@ -111,7 +111,7 @@ public class SiteBuilderToolchainTests : IDisposable
         // the directory route itself).
         File.WriteAllText(Path.Combine(_siteRoot, "content", "blog", "post.md"), "# Post\nBlog page.");
 
-        new SiteBuilder().Build(NewConfig(new Dictionary<string, string> { ["breadcrumb"] = "tools/breadcrumb.cmd" }), _siteRoot);
+        new SiteBuilder().Build(NewConfig(new Dictionary<string, ToolEntry> { ["breadcrumb"] = new ToolEntry("tools/breadcrumb.cmd") }), _siteRoot);
 
         var rootHtml = File.ReadAllText(Path.Combine(_siteRoot, "docs", "index.html"));
         var blogHtml = File.ReadAllText(Path.Combine(_siteRoot, "docs", "blog", "post", "index.html"));
@@ -127,7 +127,7 @@ public class SiteBuilderToolchainTests : IDisposable
         File.WriteAllText(Path.Combine(_siteRoot, "content", ".toolchain.json"), """{ "tools": ["a", "b"] }""");
         File.WriteAllText(Path.Combine(_siteRoot, "content", "index.md"), "# Home");
 
-        new SiteBuilder().Build(NewConfig(new Dictionary<string, string> { ["a"] = "tools/a.cmd", ["b"] = "tools/b.cmd" }), _siteRoot);
+        new SiteBuilder().Build(NewConfig(new Dictionary<string, ToolEntry> { ["a"] = new ToolEntry("tools/a.cmd"), ["b"] = new ToolEntry("tools/b.cmd") }), _siteRoot);
 
         var html = File.ReadAllText(Path.Combine(_siteRoot, "docs", "index.html"));
         Assert.True(html.IndexOf("MARKER-A", StringComparison.Ordinal) < html.IndexOf("MARKER-B", StringComparison.Ordinal));
@@ -195,7 +195,7 @@ public class SiteBuilderToolchainTests : IDisposable
         WriteMarkerTool("tools/breadcrumb.cmd", "MARKER-V1");
         File.WriteAllText(Path.Combine(_siteRoot, "content", ".toolchain.json"), """{ "tools": ["breadcrumb"] }""");
         File.WriteAllText(Path.Combine(_siteRoot, "content", "index.md"), "# Home\nBody.");
-        var tools = new Dictionary<string, string> { ["breadcrumb"] = "tools/breadcrumb.cmd" };
+        var tools = new Dictionary<string, ToolEntry> { ["breadcrumb"] = new ToolEntry("tools/breadcrumb.cmd") };
 
         new SiteBuilder().Build(NewConfig(tools), _siteRoot);
         Assert.Contains("MARKER-V1", File.ReadAllText(Path.Combine(_siteRoot, "docs", "index.html")));

@@ -18,7 +18,7 @@ public static class SiteInitializer
     // the --config path, or a test) that skip the pre-check are still safe.
     public static InitResult? CheckAlreadyInitialized(string targetDir, bool force)
     {
-        var targetConfigPath = Path.Combine(targetDir, "canary.json");
+        var targetConfigPath = Path.Combine(targetDir, "canary.jsonc");
         if (!File.Exists(targetConfigPath) || force)
         {
             return null;
@@ -27,7 +27,7 @@ public static class SiteInitializer
         var alreadyInitialized = TryReadInitializedFlag(targetConfigPath);
         var message = alreadyInitialized
             ? $"'{targetConfigPath}' is already an initialized Canary project. Pass --force to re-scaffold it."
-            : $"A canary.json already exists at '{targetConfigPath}' (not created by `canary init`). Pass --force to overwrite it.";
+            : $"A canary.jsonc already exists at '{targetConfigPath}' (not created by `canary init`). Pass --force to overwrite it.";
         return new InitResult { Refused = true, RefusalMessage = message };
     }
 
@@ -39,7 +39,7 @@ public static class SiteInitializer
             return refusal;
         }
 
-        var targetConfigPath = Path.Combine(targetDir, "canary.json");
+        var targetConfigPath = Path.Combine(targetDir, "canary.jsonc");
         var result = new InitResult();
         Directory.CreateDirectory(targetDir);
 
@@ -51,14 +51,16 @@ public static class SiteInitializer
             CopyOverwrite(Path.Combine(templatesDir, "shell.html"), Path.Combine(targetDir, "shell.html"), result);
             CopyOverwrite(Path.Combine(templatesDir, "css", "framework.css"), Path.Combine(targetDir, "css", "framework.css"), result);
             CopyOverwrite(Path.Combine(templatesDir, "css", "theme.css"), Path.Combine(targetDir, "css", "theme.css"), result);
-            CopyOverwrite(Path.Combine(templatesDir, "tools", "example.cs"), Path.Combine(targetDir, "tools", "example.cs"), result);
+            CopyOverwrite(Path.Combine(templatesDir, "tools", "curtain.cs"), Path.Combine(targetDir, "tools", "curtain.cs"), result);
+            CopyOverwrite(Path.Combine(templatesDir, "tools", "reading-time.ps1"), Path.Combine(targetDir, "tools", "reading-time.ps1"), result);
         }
         else
         {
-            result.Warnings.Add("templates/default not found -- shell.html/css/tools/example.cs not scaffolded; copy them manually from a Canary dev checkout.");
+            result.Warnings.Add("templates/default not found -- shell.html/css/tools/curtain.cs/tools/reading-time.ps1 not scaffolded; copy them manually from a Canary dev checkout.");
         }
 
         WriteStarterContent(options, targetDir, result);
+        WriteGitignore(targetDir, options, result);
 
         if (options.CopyDefaultsOnInit)
         {
@@ -89,15 +91,92 @@ public static class SiteInitializer
                 ["copyDefaultsOnInit"] = options.CopyDefaultsOnInit,
                 ["preferBuiltIn"] = options.PreferBuiltIn,
             },
-            // Registered but not applied anywhere -- add "example" to a
+            // Registered but not applied anywhere -- add a name to a
             // content directory's own .toolchain.json to actually run it.
-            // See templates/default/tools/example.cs and PLAN.md's
-            // "Content toolchain" section.
-            ["tools"] = new JsonObject { ["example"] = "dotnet run tools/example.cs" },
+            // Two languages deliberately, not one -- a tool is just an
+            // external command, and curtain.cs (C#, needs a .NET SDK) next
+            // to reading-time.ps1 (PowerShell, ships with Windows, no
+            // separate runtime) makes that visible instead of implied. See
+            // templates/default/tools/, and PLAN.md's "Content toolchain"
+            // section.
+            ["tools"] = new JsonObject
+            {
+                ["reading-time"] = "powershell -NoProfile -ExecutionPolicy Bypass -File tools/reading-time.ps1",
+                ["curtain"] = "dotnet run tools/curtain.cs",
+            },
             ["initialized"] = true,
         };
 
-        File.WriteAllText(path, config.ToJsonString(WriteOptions));
+        // JsonNode has no concept of comments -- can't express "commented
+        // out" through the object graph above, so the precompiled-form
+        // demo is spliced into the serialized text afterward instead of
+        // built the same uniform way as every other field. Anchored on
+        // just the "curtain" property's own line + the tools object's
+        // closing brace (its own exact substring, unique in the file,
+        // regardless of what else lives in "tools" alongside it) --
+        // confirmed empirically, not guessed; ToJsonString's indented
+        // writer uses Environment.NewLine (CRLF on Windows), not a bare
+        // "\n" -- found the hard way when an earlier version of this
+        // silently no-op'd instead of erroring.
+        var nl = Environment.NewLine;
+        var withCommentedPrecompileExample = config.ToJsonString(WriteOptions).Replace(
+            $"    \"curtain\": \"dotnet run tools/curtain.cs\"{nl}  }},",
+            $"    // Precompile this to a native binary once (needs a .NET 10+ SDK and a{nl}" +
+            $"    // working Native AOT toolchain) via `canary tools build curtain`, then{nl}" +
+            $"    // swap the active line below for the commented one to skip re-JITing{nl}" +
+            $"    // curtain.cs on every page build:{nl}" +
+            $"    // \"curtain\": {{ \"command\": \"tools/bin/curtain.exe\", \"source\": \"tools/curtain.cs\" }},{nl}" +
+            $"    \"curtain\": \"dotnet run tools/curtain.cs\"{nl}" +
+            $"  }},");
+
+        File.WriteAllText(path, withCommentedPrecompileExample);
+    }
+
+    // Write-once, like content/index.md below -- once a .gitignore exists,
+    // an author may have added their own entries to it, so a later
+    // `canary init --force` (a re-scaffold, not a fresh one) must never
+    // clobber it.
+    //
+    // output.dir is deliberately NOT ignored by default -- it defaults to
+    // "docs" specifically to match GitHub Pages' "serve from /docs on
+    // main" convention (see reference/config.md), which requires that
+    // directory to actually be committed. Ignoring it unconditionally
+    // would break the single most obvious deploy path a new site would
+    // reach for -- the commented-out line below is for the opposite case
+    // (a separate branch/repo, `canary publish`, a CI build step) where an
+    // author doesn't want build output in their history. Same caveat this
+    // repo's own root .gitignore already has to carve an exception for
+    // (`docs/` / `!/docs/`, for docsite's own build output).
+    private static void WriteGitignore(string targetDir, InitOptions options, InitResult result)
+    {
+        var path = Path.Combine(targetDir, ".gitignore");
+        if (File.Exists(path))
+        {
+            return;
+        }
+
+        var content =
+            $"""
+            # Site build output -- left tracked by default so a GitHub Pages
+            # "serve from {options.OutputDir}/ on main" deploy works out of the box.
+            # Uncomment if you deploy some other way (a separate branch/repo,
+            # `canary publish`, a CI build step) and don't want build output
+            # cluttering this repo's history:
+            # {options.OutputDir}/
+
+            # Precompiled tool binaries (see `canary tools build`)
+            tools/bin/
+
+            # Editor / OS
+            .vs/
+            .vscode/
+            .idea/
+            .DS_Store
+            Thumbs.db
+            """ + Environment.NewLine;
+
+        File.WriteAllText(path, content);
+        result.FilesWritten.Add(path);
     }
 
     private static void WriteStarterContent(InitOptions options, string targetDir, InitResult result)

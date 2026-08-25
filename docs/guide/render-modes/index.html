@@ -1,13 +1,4 @@
-<!--
-  Canary default shell template. Stamped onto every generated page (see
-  PLAN.md's "Chrome is unconditionally re-stamped every build" decision).
-  Placeholder contract is documented in Canary.Core.Build.PageBuilder, not
-  here -- deliberately: writing the literal placeholder syntax in this
-  comment would make the build's own string-replace match it too.
 
-  Nav stays populated client-side from /content/manifest.json (loadNav(), see
-  PLAN.md) -- this template doesn't render nav markup itself.
--->
 <!doctype html>
 <html lang="en">
 <head>
@@ -28,12 +19,12 @@
       <a class="site-title" href="/"><img class="site-logo" src="/img/logo.svg" alt="">Canary</a>
     </div>
     <nav id="site-nav" class="site-nav">
-      <!-- populated client-side from /content/manifest.json via loadNav() -->
+      
     </nav>
   </header>
 
   <main id="app"><h1>Render Modes</h1>
-<p><code>renderMode</code> in <code>canary.json</code> is <code>hybrid</code> or <code>static</code>. Both modes prerender every route to real static HTML at build time — markdown is never shipped to or parsed by the browser in either one. What differs is <strong>how in-app navigation happens</strong> once a page has loaded, not how much JavaScript runs (nav population and widgets run as page-enhancement JS either way).</p>
+<p><code>renderMode</code> in <code>canary.jsonc</code> is <code>hybrid</code> or <code>static</code>. Both modes prerender every route to real static HTML at build time — markdown is never shipped to or parsed by the browser in either one. What differs is <strong>how in-app navigation happens</strong> once a page has loaded, not how much JavaScript runs (nav population and widgets run as page-enhancement JS either way).</p>
 <h2><code>hybrid</code></h2>
 <p>A real prerendered HTML file exists per route, so a cold load — a crawler, a direct link, a social-preview scraper — gets full content immediately, no JS required. Once JS has loaded, clicking an internal link is intercepted by the client router: it fetches the target route's own prerendered HTML file, extracts the <code>&lt;main id="app"&gt;</code> fragment, and splices it into the current page. No full reload, and critically, no re-rendering — it's the exact same bytes a cold load would have gotten, just spliced in instead of navigated to. Navigation is keyed off the real URL path via the History API (<code>pushState</code>/<code>popstate</code>), so back/forward and copy-paste-the-URL both work normally.</p>
 <p>This is the mode you want for a public site where both crawlability and snappy in-app navigation matter.</p>

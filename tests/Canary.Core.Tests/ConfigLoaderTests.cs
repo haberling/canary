@@ -111,8 +111,33 @@ public class ConfigLoaderTests
     [Fact]
     public void Load_MissingFile_ThrowsCanaryConfigException()
     {
-        var ex = Assert.Throws<CanaryConfigException>(() => ConfigLoader.Load("nonexistent-canary.json"));
+        var ex = Assert.Throws<CanaryConfigException>(() => ConfigLoader.Load("nonexistent-canary.jsonc"));
 
         Assert.Contains("not found", ex.Message);
+    }
+
+    // canary.jsonc is JSONC, not strict JSON -- comments and a trailing
+    // comma are both expected to parse, not just tolerated by accident.
+    // See CanaryJsonContext's ReadCommentHandling/AllowTrailingCommas.
+    [Fact]
+    public void LoadFromJson_CommentsAndTrailingCommas_ParseSuccessfully()
+    {
+        var json = """
+            {
+              // a line comment above a field
+              "site": { "name": "Test Site", "baseUrl": "https://example.com" }, // trailing comment
+              "content": { "root": "content" },
+              /* a block comment */
+              "output": { "dir": "docs" },
+              "tools": {
+                "curtain": "dotnet run tools/curtain.cs", // trailing comma below
+              },
+            }
+            """;
+
+        var config = ConfigLoader.LoadFromJson(json);
+
+        Assert.Equal("Test Site", config.Site.Name);
+        Assert.Equal("dotnet run tools/curtain.cs", config.Tools["curtain"].Command);
     }
 }

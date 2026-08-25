@@ -1,13 +1,4 @@
-<!--
-  Canary default shell template. Stamped onto every generated page (see
-  PLAN.md's "Chrome is unconditionally re-stamped every build" decision).
-  Placeholder contract is documented in Canary.Core.Build.PageBuilder, not
-  here -- deliberately: writing the literal placeholder syntax in this
-  comment would make the build's own string-replace match it too.
 
-  Nav stays populated client-side from /content/manifest.json (loadNav(), see
-  PLAN.md) -- this template doesn't render nav markup itself.
--->
 <!doctype html>
 <html lang="en">
 <head>
@@ -28,7 +19,7 @@
       <a class="site-title" href="/"><img class="site-logo" src="/img/logo.svg" alt="">Canary</a>
     </div>
     <nav id="site-nav" class="site-nav">
-      <!-- populated client-side from /content/manifest.json via loadNav() -->
+      
     </nav>
   </header>
 
@@ -36,7 +27,7 @@
 <p>The problem this solves: functionality that should apply to <em>many</em> pages — a breadcrumb at the top, a "reading time" estimate, a "return to blog" link — without copy-pasting a widget block into every markdown file, and without mixing site behavior into content data. A <strong>tool</strong> is an external command that receives a page's raw markdown on stdin and returns transformed markdown on stdout, run once per page at build time, before that markdown reaches the renderer.</p>
 <p>Tools only ever run at build time, never in the browser — a tool is an arbitrary external command, and there's no browser equivalent for that. Every page is always fully re-rendered on every build anyway (see <a href="/incremental-builds">Incremental Builds</a>), so there's no separate "did the tool's output change" cache to keep in sync.</p>
 <h2>Two separate pieces</h2>
-<p><strong>Definition</strong> — a <code>tools</code> map in <code>canary.json</code> (name to shell command), one central registry:</p>
+<p><strong>Definition</strong> — a <code>tools</code> map in <code>canary.jsonc</code> (name to shell command), one central registry:</p>
 <pre><code>"tools": {
   "breadcrumb": "tools/breadcrumb.sh",
   "reading-time": "tools/reading-time.ps1"
@@ -51,8 +42,19 @@
 <p>Every tool's process gets two:</p>
 <ul><li><code>CANARY_ROUTE_PATH</code> — the current page's own nav-tree path (<code>""</code> for the site root, <code>"games/tesselate"</code> for a nested page), matching <code>manifest.json</code>'s own path strings exactly.</li><li><code>CANARY_MANIFEST_PATH</code> — the absolute path to the site's already-generated <code>manifest.json</code>, so a tool can consult the full nav tree (for something like "add a note to every page under <code>games/</code>") rather than only ever seeing its own page's markdown in isolation.</li></ul>
 <h2>Writing a script</h2>
-<p>A tool can be any executable command — the example scaffolded by <code>canary init</code> (<code>tools/example.cs</code>, run via <code>dotnet run tools/example.cs</code>) is a working, do-nothing passthrough: it reads stdin, writes it back to stdout unchanged, and writes the two environment variables above to stderr just to demonstrate they're there. Copy or rename it as a real starting point.</p>
-<p><strong>Always give a local script command an explicit path</strong> (<code>tools/foo.cmd</code>, not a bare <code>foo.cmd</code>) — a bare filename with no path separator can silently fail to resolve on Windows machines with the <code>NoDefaultCurrentDirectoryInExePath</code> security setting enabled. Every tool command Canary itself ships already follows this rule.</p></main>
+<p>A tool can be any executable command — <code>canary init</code> scaffolds two working examples to make that concrete, not just claim it. <code>tools/curtain.cs</code> (C#, run via <code>dotnet run tools/curtain.cs</code>) is a do-nothing passthrough: it reads stdin, writes it back to stdout unchanged, and writes the two environment variables above to stderr just to demonstrate they're there. <code>tools/reading-time.ps1</code> (PowerShell, run via <code>powershell -NoProfile -ExecutionPolicy Bypass -File tools/reading-time.ps1</code>) is a real, non-trivial one -- it counts words and inserts a reading-time badge after the page's first heading. Unlike C#, PowerShell (specifically <code>powershell.exe</code>, not <code>pwsh</code>) ships with every supported Windows install, so it needs nothing installed beyond Windows itself -- worth knowing if you want a tool that doesn't depend on whoever clones the repo having a .NET SDK. Copy or rename either as a real starting point.</p>
+<p><strong>Always give a local script command an explicit path</strong> (<code>tools/foo.cmd</code>, not a bare <code>foo.cmd</code>) — a bare filename with no path separator can silently fail to resolve on Windows machines with the <code>NoDefaultCurrentDirectoryInExePath</code> security setting enabled. Every tool command Canary itself ships already follows this rule.</p>
+<h2>Precompiling a C# tool</h2>
+<p>A C# tool registered the normal way (<code>"curtain": "dotnet run tools/curtain.cs"</code>) pays the full cost of starting the CLR and JIT-compiling the script on <em>every single page</em> it runs on, every build. For a tool used across many pages, that adds up. Opt a tool into precompilation by switching its registry entry from a string to an object:</p>
+<pre><code>"tools": {
+  "reading-time": "tools/reading-time.ps1",
+  "curtain": { "command": "tools/bin/curtain.exe", "source": "tools/curtain.cs" }
+}</code></pre>
+<p><code>command</code> means exactly what it always meant — the thing that actually runs, unchanged. <code>source</code> is new: the <code>.cs</code> file <code>command</code> gets built from. Nothing else changes about how you write the tool itself — it's still a plain file-based C# app (top-level statements, no <code>.csproj</code>) reading stdin and writing stdout, the same contract every tool already follows. <code>command</code>'s filename doesn't need to match <code>source</code>'s — name it whatever you want.</p>
+<p>Run <code>canary tools build</code> to compile every tool with a <code>source</code> field (or <code>canary tools build &lt;name&gt;</code> for just one). This runs <code>dotnet publish</code> targeting Native AOT — not a framework-dependent build — so the result is a single standalone native executable with no .NET runtime dependency at the machine running <code>canary build</code> later, and none of the CLR startup/JIT cost on every invocation. Needs a working Native AOT toolchain (the same one publishing Canary itself needs) on whatever machine runs <code>canary tools build</code>.</p>
+<p>If a tool needs a NuGet package, use .NET's file-based-app <code>#:package Name@Version</code> directive at the top of the <code>.cs</code> file — <code>dotnet publish</code> already understands it, nothing Canary-specific required.</p>
+<p><strong>AOT trims aggressively and has no runtime reflection.</strong> A tool using reflection-based <code>System.Text.Json</code> (not source-generated) or similar could behave differently precompiled than it did under <code>dotnet run</code>. Not a concern for the kind of small, straightforward text transform a toolchain tool is meant to be, but worth knowing if something works unbuilt and breaks once precompiled.</p>
+<p><code>canary build</code> checks every precompiled tool once per run: if <code>command</code>'s binary is missing entirely, the build fails with a message telling you to run <code>canary tools build &lt;name&gt;</code>. If <code>source</code> has been edited more recently than <code>command</code> was last built, the build prints a warning and proceeds anyway using the existing binary — never a hard stop, just a heads-up that you probably meant to rebuild.</p></main>
 
   <footer class="site-footer">
     <span>Built with Canary.</span>

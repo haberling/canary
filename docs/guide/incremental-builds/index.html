@@ -1,13 +1,4 @@
-<!--
-  Canary default shell template. Stamped onto every generated page (see
-  PLAN.md's "Chrome is unconditionally re-stamped every build" decision).
-  Placeholder contract is documented in Canary.Core.Build.PageBuilder, not
-  here -- deliberately: writing the literal placeholder syntax in this
-  comment would make the build's own string-replace match it too.
 
-  Nav stays populated client-side from /content/manifest.json (loadNav(), see
-  PLAN.md) -- this template doesn't render nav markup itself.
--->
 <!doctype html>
 <html lang="en">
 <head>
@@ -28,7 +19,7 @@
       <a class="site-title" href="/"><img class="site-logo" src="/img/logo.svg" alt="">Canary</a>
     </div>
     <nav id="site-nav" class="site-nav">
-      <!-- populated client-side from /content/manifest.json via loadNav() -->
+      
     </nav>
   </header>
 
@@ -37,7 +28,7 @@
 <h2>Every page is always fully re-rendered</h2>
 <p>There's no cache to hit or miss — markdown rendering and any applicable toolchain tools run unconditionally, every build, for every page. What's actually conditional is the disk <strong>write</strong>: since rendering is deterministic, the freshly-rendered HTML is compared against whatever's already on disk at that path, and a file is only written when it actually differs. If you commit <code>output.dir</code> to git, this keeps your diffs small and meaningful — they reflect real content changes, not "the build ran again."</p>
 <h2><code>canary serve</code> gets its speed a different way</h2>
-<p>Full re-rendering on every save would make local dev noticeably slower on a large site, so <code>canary serve</code> takes a different path: it tracks which file(s) changed during its debounce window. If every changed file is a plain edit to an existing page's own markdown source, only that page gets re-rendered. Anything else — a page created, deleted, or renamed, or a non-content change (a widget, a tool script, a theme file, <code>canary.json</code> itself) — falls back to rendering every page, since those could affect more than one page and Canary isn't going to guess which ones.</p>
+<p>Full re-rendering on every save would make local dev noticeably slower on a large site, so <code>canary serve</code> takes a different path: it tracks which file(s) changed during its debounce window. If every changed file is a plain edit to an existing page's own markdown source, only that page gets re-rendered. Anything else — a page created, deleted, or renamed, or a non-content change (a widget, a tool script, a theme file, <code>canary.jsonc</code> itself) — falls back to rendering every page, since those could affect more than one page and Canary isn't going to guess which ones.</p>
 <p>Site-wide bookkeeping (the manifest, <code>.toolchain.json</code> auto-creation, sitemap/robots, asset copies) always runs in full regardless of which path was taken — it's cheap, and skipping it risks the nav tree or sitemap going stale.</p>
 <h2>Reading the build summary</h2>
 <p><code>canary build</code>/<code>canary serve</code> report how many pages were written versus left unchanged. "Written" means the file on disk actually changed; "unchanged" means it was computed fresh but happened to come out identical to what was already there — a distinction that, by construction, can never disagree with what <code>git status</code> would show you.</p></main>

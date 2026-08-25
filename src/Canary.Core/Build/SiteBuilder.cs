@@ -83,7 +83,7 @@ public sealed class SiteBuilder
     // null (render everything) unless every path in changedPaths maps
     // cleanly onto an existing route's own source file -- a changed path
     // that isn't any route's SourcePath (a widget/tool-script/theme/
-    // canary.json edit, say) means the change could affect more than just
+    // canary.jsonc edit, say) means the change could affect more than just
     // one page, so it falls back to rendering everything rather than
     // guessing.
     private static IReadOnlyList<ContentRoute> ResolveRoutesToRender(IReadOnlyList<ContentRoute> routes, IReadOnlySet<string>? changedPaths)
@@ -118,6 +118,14 @@ public sealed class SiteBuilder
         // so it's already current on disk by the time any tool runs.
         var manifestPath = Path.Combine(contentRoot, "manifest.json");
 
+        // Projected once per build, not per page/tool invocation --
+        // ToolchainRunner only ever needs "what do I run", the same
+        // command string a bare-string registry entry always gave it, so
+        // it stays completely unaware of ToolEntry/Source and how a
+        // command came to exist (precompiled vs. hand-written). See the
+        // 0.2.0 plan's "persistent toolchain-tool workers" section.
+        var toolCommands = config.Tools.ToDictionary(kv => kv.Key, kv => kv.Value.Command);
+
         var written = 0;
         var unchanged = 0;
         foreach (var route in routesToRender)
@@ -130,7 +138,7 @@ public sealed class SiteBuilder
             var navRoutePath = route.RoutePath == "/" ? "" : route.RoutePath;
             var toolchainContext = new Toolchain.ToolchainContext(siteRoot, navRoutePath, manifestPath);
             Func<string, string>? transformSource = toolNames.Count > 0
-                ? source => Toolchain.ToolchainRunner.Run(toolNames, config.Tools, toolchainContext, source)
+                ? source => Toolchain.ToolchainRunner.Run(toolNames, toolCommands, toolchainContext, source)
                 : null;
 
             var result = pageBuilder.BuildPage(

@@ -45,7 +45,7 @@ public static class ToolchainRunner
         if (!registry.TryGetValue(name, out var command))
         {
             throw new InvalidOperationException(
-                $"Unknown tool '{name}' referenced in .toolchain.json -- no matching entry in canary.json's \"tools\" registry.");
+                $"Unknown tool '{name}' referenced in .toolchain.json -- no matching entry in canary.jsonc's \"tools\" registry.");
         }
         return command;
     }
