@@ -1,0 +1,55 @@
+<!--
+  Standard widget contract (see PLAN.md's widget-controversy notes): a plain
+  Mustache-syntax HTML template, filled from the fence block's YAML body.
+  No code -- an "items" section iterates the items list below; a "copy"
+  conditional (normal and inverted) branches between a plain link row and a
+  copy-command row. NOTE: this comment deliberately never writes the actual
+  double-brace tag syntax -- the templater has no notion of "this is just a
+  comment," so literal tags typed here would be executed for real (this bit
+  the shell.html chrome template earlier in the project the same way).
+
+  Interactivity (the Copy button) lives in the sibling downloads.js, shared
+  across every instance on a page -- see that file.
+
+  A site-root-relative "url:" (e.g. "content/games/manual.pdf", matching how
+  markdown-authored links/images are written elsewhere) needs the explicit
+  "!url" tag shown below to get rewritten to a root-relative path -- see
+  Canary.Core.Templating.YamlParser/UrlResolver. Deliberately explicit, not
+  automatic: nothing resolves just because a field happens to be named
+  "url" -- see PLAN.md's widget-controversy notes for why. A plain
+  "url: ..." with no tag is left exactly as written (fine for an already-
+  absolute https:// URL, broken for a relative one on any page that isn't
+  the site root).
+-->
+<!--clipboard
+```downloads
+title: Optional Title
+items:
+  - label: "Windows Installer"
+    url: "https://example.com/file.msi"
+  - label: "User Manual"
+    url: !url "content/games/manual.pdf"
+  - copy: true
+    label: "Install via PowerShell"
+    command: "msiexec /i ... /quiet /norestart"
+```
+-->
+<div class="downloads-widget" data-widget="downloads">
+  <h3>{{^title}}Downloads{{/title}}{{title}}</h3>
+  <ul>
+    {{#items}}
+    {{^copy}}
+    <li><a class="download-button" href="{{url}}">{{label}}</a></li>
+    {{/copy}}
+    {{#copy}}
+    <li class="copy-command" data-command="{{command}}">
+      <span class="copy-command-label">{{label}}</span>
+      <div class="copy-command-row">
+        <code class="copy-command-text">{{command}}</code>
+        <button type="button" class="copy-command-button">Copy</button>
+      </div>
+    </li>
+    {{/copy}}
+    {{/items}}
+  </ul>
+</div>

@@ -1,0 +1,16 @@
+# Site build output -- left tracked by default so a GitHub Pages
+# "serve from docs/ on main" deploy works out of the box.
+# Uncomment if you deploy some other way (a separate branch/repo,
+# `canary publish`, a CI build step) and don't want build output
+# cluttering this repo's history:
+# docs/
+
+# Precompiled tool binaries (see `canary tools build`)
+tools/bin/
+
+# Editor / OS
+.vs/
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

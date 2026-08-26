@@ -1,0 +1,46 @@
+<!--
+  Standard widget contract (see PLAN.md's widget-controversy notes): a plain
+  Mustache-syntax HTML template, filled from the fence block's YAML body.
+  Renders its lines back out as an escaped, verbatim code block -- the
+  general answer to "how do I show a widget's own fence syntax as example
+  text instead of it actually running as that widget," since a fence's info
+  string always dispatches to the matching widget with no escape sequence
+  otherwise (see PLAN.md's docsite notes). NOTE: this comment deliberately
+  never writes the actual double-brace tag syntax -- the templater has no
+  notion of "this is just a comment," so literal tags typed here would be
+  executed for real (this bit the downloads widget's own doc comment
+  earlier in the project the same way).
+
+  Canary.Core.Templating.YamlParser has no multi-line block-scalar support
+  (see PLAN.md) -- a multi-line example is written as one list entry per
+  source line, each its own quoted "text" field, rather than one big block
+  of text. Each entry has to be a one-field map, not a bare scalar list
+  item: the templater has no "current item" self-reference for a bare
+  scalar inside a section, only field lookups against a map. An optional
+  top-level "lang" field is cosmetic only (no syntax highlighting is
+  implemented) -- rendered as a small label and a language-<lang> class, a
+  hook for later.
+
+  A line containing a literal double quote needs single quotes as its OWN
+  YAML delimiter instead ('    - label: "My File"' below) -- YamlParser
+  only strips a scalar's matching outer quote pair, it never unescapes a
+  backslash inside one, so a line written as "...\"...\"" comes out with
+  literal backslashes still in it rather than the quote you meant. Found by
+  actually rendering this exact example and reading the output, not by
+  inspection -- see PLAN.md's docsite notes.
+-->
+<!--clipboard
+```code
+lang: yaml
+lines:
+  - text: "downloads:"
+  - text: "  title: Example"
+  - text: "  items:"
+  - text: '    - label: "My File"'
+```
+-->
+<div class="code-widget" data-widget="code">
+  {{#lang}}<div class="code-widget-lang">{{lang}}</div>{{/lang}}
+  <pre><code class="language-{{lang}}">{{#lines}}{{text}}
+{{/lines}}</code></pre>
+</div>

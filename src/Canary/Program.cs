@@ -6,7 +6,9 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using Canary.Core.Build;
 using Canary.Core.Config;
+using Canary.Core.Explore;
 using Canary.Core.Init;
+using Canary.Core.Manifest;
 using Canary.Core.Publish;
 using Canary.Core.Serve;
 using Canary.Core.Toolchain;
@@ -83,6 +85,20 @@ partial class Program
             parseResult.GetValue(toolNameArg)));
         var toolsCommand = new Command("tools", "Tool registry management") { toolsBuildCommand };
         rootCommand.Subcommands.Add(toolsCommand);
+
+        // No action of its own -- bare `canary explore` falls through to
+        // System.CommandLine's own automatic help for this subcommand, same
+        // as bare `canary tools` above. Both "nav" and "navigation" reach
+        // the same command; the user asked for both spellings to work.
+        var exploreNavCommand = new Command("nav", "Interactive tree view of the curated nav menu (SiteManifest.Nav)") { configOption };
+        exploreNavCommand.Aliases.Add("navigation");
+        exploreNavCommand.SetAction(parseResult => RunExploreNav(parseResult.GetValue(configOption)!));
+
+        var exploreToolchainCommand = new Command("toolchain", "Interactive tree view of every content directory's resolved toolchain tools") { configOption };
+        exploreToolchainCommand.SetAction(parseResult => RunExploreToolchain(parseResult.GetValue(configOption)!));
+
+        var exploreCommand = new Command("explore", "Interactive tree view of nav structure or toolchain assignment") { exploreNavCommand, exploreToolchainCommand };
+        rootCommand.Subcommands.Add(exploreCommand);
 
         return rootCommand.Parse(args).Invoke();
     }
@@ -697,6 +713,60 @@ partial class Program
         }
 
         return failed ? 1 : 0;
+    }
+
+    // Builds the same curated nav tree ManifestBuilder produces during a
+    // real build (SiteManifest.Nav) directly from content on disk, rather
+    // than reading a possibly-stale manifest.json -- so `canary explore
+    // nav` reflects the current content tree even if `canary build` hasn't
+    // run since the last edit.
+    static int RunExploreNav(string configPath)
+    {
+        CanaryConfig config;
+        try
+        {
+            config = ConfigLoader.Load(configPath);
+        }
+        catch (CanaryConfigException ex)
+        {
+            Console.Error.WriteLine(ex.Message);
+            return 1;
+        }
+
+        var siteRoot = Path.GetDirectoryName(Path.GetFullPath(configPath))!;
+        var contentRoot = Path.Combine(siteRoot, config.Content.Root!);
+
+        var manifest = ManifestBuilder.Build(contentRoot, config.Nav.Depth);
+        var roots = NavTreeBuilder.Build(manifest.Nav);
+        TreeExplorer.Run(roots, "No nav items found.");
+        return 0;
+    }
+
+    // Unlike RunExploreNav, ToolchainTreeBuilder walks the filesystem
+    // itself rather than going through a pre-built tree -- .toolchain.json
+    // application isn't nav-depth-limited, so there's no existing "build
+    // the toolchain tree" step to reuse (see ToolchainTreeBuilder's own
+    // doc comment).
+    static int RunExploreToolchain(string configPath)
+    {
+        CanaryConfig config;
+        try
+        {
+            config = ConfigLoader.Load(configPath);
+        }
+        catch (CanaryConfigException ex)
+        {
+            Console.Error.WriteLine(ex.Message);
+            return 1;
+        }
+
+        var siteRoot = Path.GetDirectoryName(Path.GetFullPath(configPath))!;
+        var contentRoot = Path.Combine(siteRoot, config.Content.Root!);
+
+        var root = ToolchainTreeBuilder.Build(contentRoot);
+        var roots = root != null ? new List<ExploreNode> { root } : [];
+        TreeExplorer.Run(roots, "No content found.");
+        return 0;
     }
 
     static bool RunOneBuild(CanaryConfig config, string siteRoot, string? runtimeDistDir, string label, IReadOnlySet<string>? changedPaths = null)

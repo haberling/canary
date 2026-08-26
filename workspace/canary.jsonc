@@ -1,16 +1,38 @@
 {
-  "site": { "name": "The Pirates of Penzance", "baseUrl": "https://example.com" },
-  "content": { "root": "content" },
-  "output": { "dir": "docs" },
+  "site": {
+    "name": "The Pirates of Penzance",
+    "baseUrl": "https://example.com"
+  },
+  "content": {
+    "root": "content"
+  },
+  "output": {
+    "dir": "docs"
+  },
   "renderMode": "hybrid",
-  "nav": { "depth": 2 },
+  "nav": {
+    "depth": 2
+  },
+  "serve": {
+    "port": 6913
+  },
   "theme": {
     "shell": "shell.html",
     "base": "css/framework.css",
     "theme": "css/theme.css"
   },
+  "widgets": {
+    "copyDefaultsOnInit": true,
+    "preferBuiltIn": false
+  },
   "tools": {
     "reading-time": "powershell -NoProfile -ExecutionPolicy Bypass -File tools/reading-time.ps1",
-    "curtain": { "command": "tools/bin/curtain.exe", "source": "tools/curtain.cs" }
-  }
+    // Precompile this to a native binary once (needs a .NET 10+ SDK and a
+    // working Native AOT toolchain) via `canary tools build curtain`, then
+    // swap the active line below for the commented one to skip re-JITing
+    // curtain.cs on every page build:
+    // "curtain": { "command": "tools/bin/curtain.exe", "source": "tools/curtain.cs" },
+    "curtain": "dotnet run tools/curtain.cs"
+  },
+  "initialized": true
 }
