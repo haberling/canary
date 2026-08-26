@@ -1,3 +1,4 @@
+using System.CommandLine;
 using System.Diagnostics;
 using System.Net;
 using System.Net.Sockets;
@@ -17,55 +18,77 @@ partial class Program
 {
     static int Main(string[] args)
     {
-        if (args.Length == 0)
+        // Shared by every subcommand that operates on a site (build, serve,
+        // publish, widgets, tools build) -- added to each of those directly
+        // rather than Recursive on the root, so it doesn't also show up on
+        // init/docs, which don't use it (see cli.md: "every command except
+        // init and docs"). Distinct from init's own --from below, which
+        // means something else entirely (an existing config to pull
+        // scaffold values from, not this site's config).
+        var configOption = new Option<string>("--config")
         {
-            PrintUsage();
-            return 1;
-        }
+            Description = "Path to canary.jsonc",
+            DefaultValueFactory = _ => "canary.jsonc",
+        };
 
-        var command = args[0];
-        var configPath = GetOption(args, "--config") ?? "canary.jsonc";
+        var rootCommand = new RootCommand("Canary -- hand-rolled static site engine");
 
-        switch (command)
+        var targetDirArg = new Argument<string>("path") { DefaultValueFactory = _ => "." };
+        var initFromOption = new Option<string?>("--from") { Description = "Pull values from an existing canary.jsonc instead of prompting" };
+        var initForceOption = new Option<bool>("--force") { Description = "Overwrite an existing project" };
+        var initCommand = new Command("init", "Scaffold a new site into path (default .)") { targetDirArg, initFromOption, initForceOption };
+        initCommand.SetAction(parseResult => RunInit(
+            parseResult.GetValue(targetDirArg)!,
+            parseResult.GetValue(initFromOption),
+            parseResult.GetValue(initForceOption)));
+        rootCommand.Subcommands.Add(initCommand);
+
+        var cleanOption = new Option<bool>("--clean") { Description = "Delete output.dir before rebuilding (prompts to confirm, default No)" };
+        var buildCommand = new Command("build", "Build the site once") { configOption, cleanOption };
+        buildCommand.SetAction(parseResult => RunBuild(
+            parseResult.GetValue(configOption)!,
+            parseResult.GetValue(cleanOption)));
+        rootCommand.Subcommands.Add(buildCommand);
+
+        var portOption = new Option<string?>("--port") { Description = "Port to serve on (default: canary.jsonc's serve.port, normally 6913)" };
+        var serveCommand = new Command("serve", "Build, then serve output.dir locally, rebuilding on change") { configOption, portOption };
+        serveCommand.SetAction(parseResult => RunServe(
+            parseResult.GetValue(configOption)!,
+            parseResult.GetValue(portOption)));
+        rootCommand.Subcommands.Add(serveCommand);
+
+        var publishCommand = new Command("publish", "Build, then run canary.jsonc's \"publish\" command") { configOption };
+        publishCommand.SetAction(parseResult => RunPublish(parseResult.GetValue(configOption)!));
+        rootCommand.Subcommands.Add(publishCommand);
+
+        var docsForceOption = new Option<bool>("--force") { Description = "Close an already-open docs instance first" };
+        var docsCommand = new Command("docs", "Open Canary's own bundled documentation in a browser") { docsForceOption };
+        docsCommand.SetAction(parseResult => RunDocs(parseResult.GetValue(docsForceOption)));
+        rootCommand.Subcommands.Add(docsCommand);
+
+        var widgetNameArg = new Argument<string?>("name") { Arity = ArgumentArity.ZeroOrOne, Description = "List all widgets if omitted, else print one widget's clipboard usage example" };
+        var widgetsCommand = new Command("widgets", "List discovered widgets, or print one widget's clipboard usage example") { configOption, widgetNameArg };
+        widgetsCommand.SetAction(parseResult =>
         {
-            case "init":
-                return RunInit(args);
-            case "build":
-                return RunBuild(configPath, args);
-            case "serve":
-                return RunServe(configPath, GetOption(args, "--port"));
-            case "publish":
-                return RunPublish(configPath);
-            case "docs":
-                return RunDocs(HasFlag(args, "--force"));
-            case "widgets":
-                return args.Length > 1 && !args[1].StartsWith("--", StringComparison.Ordinal)
-                    ? RunWidgetShow(configPath, args[1])
-                    : RunWidgetsList(configPath);
-            case "tools":
-                if (args.Length < 2 || args[1] != "build")
-                {
-                    Console.Error.WriteLine("Usage: canary tools build [<name>] [--config <path>]");
-                    return 1;
-                }
-                return RunToolsBuild(configPath, args);
-            default:
-                Console.Error.WriteLine($"Unknown command: {command}");
-                PrintUsage();
-                return 1;
-        }
+            var name = parseResult.GetValue(widgetNameArg);
+            var config = parseResult.GetValue(configOption)!;
+            return name is null ? RunWidgetsList(config) : RunWidgetShow(config, name);
+        });
+        rootCommand.Subcommands.Add(widgetsCommand);
+
+        var toolNameArg = new Argument<string?>("name") { Arity = ArgumentArity.ZeroOrOne, Description = "Build only this tool; omit to build all buildable tools" };
+        var toolsBuildCommand = new Command("build", "Precompile \"tools\" registry entries with a \"source\" field via dotnet publish (Native AOT)") { configOption, toolNameArg };
+        toolsBuildCommand.SetAction(parseResult => RunToolsBuild(
+            parseResult.GetValue(configOption)!,
+            parseResult.GetValue(toolNameArg)));
+        var toolsCommand = new Command("tools", "Tool registry management") { toolsBuildCommand };
+        rootCommand.Subcommands.Add(toolsCommand);
+
+        return rootCommand.Parse(args).Invoke();
     }
 
-    // Positional target dir (default ".") plus --config/--force, both parsed
-    // independently of the shared `configPath` computed in Main -- --config
-    // means something different here (the *source* to scaffold values from)
-    // than it does for build/serve/widgets/widget (the site's own config).
-    static int RunInit(string[] args)
+    static int RunInit(string targetDir, string? configSourcePath, bool force)
     {
-        var targetDir = args.Length > 1 && !args[1].StartsWith("--", StringComparison.Ordinal) ? args[1] : ".";
-        var configSourcePath = GetOption(args, "--config");
-        var force = HasFlag(args, "--force");
-
         // Checked up front, before any interactive prompting -- no point
         // asking eight questions just to refuse at the end.
         var earlyRefusal = SiteInitializer.CheckAlreadyInitialized(targetDir, force);
@@ -250,7 +273,7 @@ partial class Program
         }
     }
 
-    static int RunBuild(string configPath, string[] args)
+    static int RunBuild(string configPath, bool clean)
     {
         CanaryConfig config;
         try
@@ -276,7 +299,7 @@ partial class Program
             return 1;
         }
 
-        if (HasFlag(args, "--clean"))
+        if (clean)
         {
             var outputRoot = Path.Combine(siteRoot, config.Output.Dir);
             if (Directory.Exists(outputRoot))
@@ -615,7 +638,7 @@ partial class Program
     // the 0.2.0 plan's "persistent toolchain-tool workers" section. A
     // plain-string entry, or an object entry with no Source, is silently
     // not "buildable" -- nothing to do for it, not an error.
-    static int RunToolsBuild(string configPath, string[] args)
+    static int RunToolsBuild(string configPath, string? name)
     {
         CanaryConfig config;
         try
@@ -629,10 +652,6 @@ partial class Program
         }
 
         var siteRoot = Path.GetDirectoryName(Path.GetFullPath(configPath))!;
-        // args[0]/[1] are "tools"/"build"; the optional tool name (if any)
-        // is args[2], same "positional arg, then flags" convention as
-        // canary widgets <name>/RunInit's targetDir.
-        var name = args.Length > 2 && !args[2].StartsWith("--", StringComparison.Ordinal) ? args[2] : null;
 
         List<KeyValuePair<string, ToolEntry>> toBuild;
         if (name != null)
@@ -732,21 +751,6 @@ partial class Program
         return null;
     }
 
-    static string? GetOption(string[] args, string name)
-    {
-        for (var i = 0; i < args.Length - 1; i++)
-        {
-            if (args[i] == name)
-            {
-                return args[i + 1];
-            }
-        }
-
-        return null;
-    }
-
-    static bool HasFlag(string[] args, string name) => Array.IndexOf(args, name) >= 0;
-
     // Range picked to avoid the well-known local-dev defaults every other
     // tool on a machine is already fighting over (3000/3001 Node/React,
     // 4200 Angular, 5000/5001 Flask/Kestrel, 5173 Vite, 8000 Django,
@@ -812,19 +816,5 @@ partial class Program
         {
             // Non-fatal -- see comment above.
         }
-    }
-
-    static void PrintUsage()
-    {
-        Console.WriteLine("Usage: canary <command> [options]");
-        Console.WriteLine();
-        Console.WriteLine("Commands:");
-        Console.WriteLine("  init [path] [--config <path>] [--force]  Scaffold a new site into path (default .); --config pulls values from an existing canary.jsonc instead of prompting; --force overwrites an existing project");
-        Console.WriteLine("  build [--config <path>] [--clean]      Build the site once; --clean deletes output.dir first (prompts to confirm, default No)");
-        Console.WriteLine("  serve [--config <path>] [--port <n>]   Build, then serve output.dir locally, rebuilding on change (default port: canary.jsonc's serve.port, normally 6913)");
-        Console.WriteLine("  publish [--config <path>]              Build, then run canary.jsonc's \"publish\" command (e.g. git add/commit/push for a git-served host)");
-        Console.WriteLine("  docs [--force]                         Open Canary's own bundled documentation in a browser, on a random unused port in [9000, 9999]; if already open, says so and exits unless --force closes the existing one first");
-        Console.WriteLine("  widgets [<name>] [--config <path>]     List discovered widgets, or print one widget's clipboard usage example");
-        Console.WriteLine("  tools build [<name>] [--config <path>] Precompile \"tools\" registry entries with a \"source\" field via dotnet publish (Native AOT)");
     }
 }
