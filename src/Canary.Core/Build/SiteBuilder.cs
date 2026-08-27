@@ -26,8 +26,11 @@ public sealed class SiteBuilder
     // "render every route" (a bare `canary build`, serve's initial build,
     // or any structural change SiteWatcher couldn't safely narrow down).
     // See PLAN.md's "Incremental builds" section.
-    public BuildSummary Build(CanaryConfig config, string siteRoot, string? runtimeDistDir = null, IReadOnlySet<string>? changedPaths = null)
+    public BuildSummary Build(
+        CanaryConfig config, string siteRoot, string? runtimeDistDir = null, IReadOnlySet<string>? changedPaths = null,
+        IBuildProgress? progress = null)
     {
+        progress ??= NullBuildProgress.Instance;
         var contentRoot = Path.Combine(siteRoot, config.Content.Root!);
         var outputRoot = Path.Combine(siteRoot, config.Output.Dir);
         Directory.CreateDirectory(outputRoot);
@@ -37,48 +40,83 @@ public sealed class SiteBuilder
         // the expensive part, and skipping them would risk the nav tree/
         // sitemap silently going stale relative to the content that just
         // changed.
-        Manifest.ManifestBuilder.BuildAndWrite(contentRoot, config.Nav.Depth);
-        var routes = ContentScanner.Scan(contentRoot);
-        var behaviorScripts = Widgets.WidgetDiscovery.Discover(siteRoot, runtimeDistDir, "*.js");
-        // Widget CSS: discovered and shipped exactly like behavior scripts
-        // -- built-in and site-authored are found the same way, no widget
-        // ever gets special-cased styling another widget can't also have.
-        // See PLAN.md's Widget system section for why this exists (it
-        // didn't, until a review caught built-in widget CSS baked directly
-        // into framework.css, breaking that same-treatment promise).
-        var styleSheets = Widgets.WidgetDiscovery.Discover(siteRoot, runtimeDistDir, "*.css");
+        var routes = RunPhase(progress, "Scanning content", () =>
+        {
+            Manifest.ManifestBuilder.BuildAndWrite(contentRoot, config.Nav.Depth);
+            return ContentScanner.Scan(contentRoot);
+        });
 
-        // Auto-create a self-documenting .toolchain.json for every content
-        // directory that has markdown directly inside it (derived from the
-        // route list just scanned, not a second filesystem walk) -- same
-        // "drop a file in, discoverable, editable" spirit as .nav.json's
-        // auto-creation, just scoped deeper. See Toolchain.ToolchainOverrideFile.
-        Toolchain.ToolchainOverrideFile.EnsureFilesExist(routes.Select(r => Path.GetDirectoryName(r.SourcePath)!));
+        var (behaviorScripts, styleSheets) = RunPhase(progress, "Discovering widgets", () =>
+        {
+            var scripts = Widgets.WidgetDiscovery.Discover(siteRoot, runtimeDistDir, "*.js");
+            // Widget CSS: discovered and shipped exactly like behavior
+            // scripts -- built-in and site-authored are found the same
+            // way, no widget ever gets special-cased styling another
+            // widget can't also have. See PLAN.md's Widget system section
+            // for why this exists (it didn't, until a review caught
+            // built-in widget CSS baked directly into framework.css,
+            // breaking that same-treatment promise).
+            var styles = Widgets.WidgetDiscovery.Discover(siteRoot, runtimeDistDir, "*.css");
+            return (scripts, styles);
+        });
+
+        RunPhase(progress, "Preparing toolchain", () =>
+            // Auto-create a self-documenting .toolchain.json for every
+            // content directory that has markdown directly inside it
+            // (derived from the route list just scanned, not a second
+            // filesystem walk) -- same "drop a file in, discoverable,
+            // editable" spirit as .nav.json's auto-creation, just scoped
+            // deeper. See Toolchain.ToolchainOverrideFile.
+            Toolchain.ToolchainOverrideFile.EnsureFilesExist(routes.Select(r => Path.GetDirectoryName(r.SourcePath)!)));
 
         // Own step, sequenced right after the manifest build rather than
         // folded into BuildPrerendered's page-rendering loop -- sitemap/
         // robots generation is a distinct concern from rendering pages, it
         // just happens to need the same route list.
-        WriteSeoFiles(config, outputRoot, routes);
+        RunPhase(progress, "Writing sitemap/robots", () => WriteSeoFiles(config, outputRoot, routes));
 
         var routesToRender = ResolveRoutesToRender(routes, changedPaths);
-        var summary = BuildPrerendered(config, siteRoot, contentRoot, outputRoot, routes, routesToRender, runtimeDistDir, behaviorScripts, styleSheets);
+        var summary = RunPhase(progress, "Rendering pages", () =>
+            BuildPrerendered(config, siteRoot, contentRoot, outputRoot, routes, routesToRender, runtimeDistDir, behaviorScripts, styleSheets, progress));
 
-        if (runtimeDistDir != null)
+        RunPhase(progress, "Copying assets", () =>
         {
-            CopyRuntimeAssets(config.RenderMode, runtimeDistDir, outputRoot);
-        }
+            if (runtimeDistDir != null)
+            {
+                CopyRuntimeAssets(config.RenderMode, runtimeDistDir, outputRoot);
+            }
 
-        // Not gated on runtimeDistDir: site-authored widget behavior
-        // scripts/styles are discovered independently of it, and a page's
-        // {{widgetScripts}}/{{widgetStyles}} reference them either way --
-        // gating this would leave those tags pointing at files that were
-        // never actually copied.
-        CopyWidgetFiles(behaviorScripts, Path.Combine(outputRoot, "js", "widgets"));
-        CopyWidgetFiles(styleSheets, Path.Combine(outputRoot, "css", "widgets"));
+            // Not gated on runtimeDistDir: site-authored widget behavior
+            // scripts/styles are discovered independently of it, and a
+            // page's {{widgetScripts}}/{{widgetStyles}} reference them
+            // either way -- gating this would leave those tags pointing at
+            // files that were never actually copied.
+            CopyWidgetFiles(behaviorScripts, Path.Combine(outputRoot, "js", "widgets"));
+            CopyWidgetFiles(styleSheets, Path.Combine(outputRoot, "css", "widgets"));
+
+            // Last, so a site author's own file always wins over anything
+            // Canary itself just generated at the same output-root path
+            // (e.g. a hand-written root-copy/robots.txt overriding
+            // WriteSeoFiles' generated one above) -- an explicit override,
+            // not an accidental one, since it's always this same directory
+            // doing it, every build.
+            CopyRootCopyAssets(siteRoot, outputRoot);
+        });
 
         return summary;
     }
+
+    private static T RunPhase<T>(IBuildProgress progress, string phase, Func<T> action)
+    {
+        progress.PhaseStarted(phase);
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        var result = action();
+        progress.PhaseFinished(phase, sw.Elapsed);
+        return result;
+    }
+
+    private static void RunPhase(IBuildProgress progress, string phase, Action action) =>
+        RunPhase(progress, phase, () => { action(); return true; });
 
     // null (render everything) unless every path in changedPaths maps
     // cleanly onto an existing route's own source file -- a changed path
@@ -101,7 +139,7 @@ public sealed class SiteBuilder
 
     private static BuildSummary BuildPrerendered(
         CanaryConfig config, string siteRoot, string contentRoot, string outputRoot, IReadOnlyList<ContentRoute> allRoutes, IReadOnlyList<ContentRoute> routesToRender,
-        string? runtimeDistDir, Dictionary<string, string> behaviorScripts, Dictionary<string, string> styleSheets)
+        string? runtimeDistDir, Dictionary<string, string> behaviorScripts, Dictionary<string, string> styleSheets, IBuildProgress progress)
     {
         var shellTemplate = LoadShellTemplate(config, siteRoot);
         var widgetTemplates = Widgets.WidgetDiscovery.Discover(siteRoot, runtimeDistDir, "*.html");
@@ -137,15 +175,52 @@ public sealed class SiteBuilder
             // RoutePath -- see Toolchain.ToolchainContext's doc comment.
             var navRoutePath = route.RoutePath == "/" ? "" : route.RoutePath;
             var toolchainContext = new Toolchain.ToolchainContext(siteRoot, navRoutePath, manifestPath);
+
+            // Display-only chain for a live renderer -- source file name,
+            // each toolchain tool in declared order, then a synthetic
+            // ".html" name derived from the source's own stem. Not the
+            // real OutputRelativePath (almost always some nested
+            // "index.html", identical across every page under this
+            // framework's route convention, so showing it here would make
+            // every page's chain end the same way) -- this is purely
+            // cosmetic, the real path is still what actually gets written.
+            var sourceDisplayName = Path.GetFileName(route.SourcePath);
+            var outputDisplayName = Path.GetFileNameWithoutExtension(route.SourcePath) + ".html";
+            var chain = new List<string> { sourceDisplayName };
+            chain.AddRange(toolNames);
+            chain.Add(outputDisplayName);
+
             Func<string, string>? transformSource = toolNames.Count > 0
-                ? source => Toolchain.ToolchainRunner.Run(toolNames, toolCommands, toolchainContext, source)
+                ? source =>
+                {
+                    var transformed = Toolchain.ToolchainRunner.Run(
+                        toolNames, toolCommands, toolchainContext, source,
+                        onToolStarted: (i, _) => progress.RenderStageChanged(chain, 1 + i));
+                    // Tools done -- markdown render + write is next.
+                    progress.RenderStageChanged(chain, chain.Count - 1);
+                    return transformed;
+                }
                 : null;
 
+            // Only needed when there's no transformSource to report its
+            // own first-tool-started event below -- with no tools, chain
+            // is exactly [source, output], so index 1 (the only stage
+            // left to reach) is the output stage itself. With tools, the
+            // onToolStarted callback above fires that same "index 1"
+            // transition itself once BuildPage actually invokes
+            // transformSource; reporting it here too would just be the
+            // same line twice.
+            if (toolNames.Count == 0)
+            {
+                progress.RenderStageChanged(chain, 1);
+            }
             var result = pageBuilder.BuildPage(
                 route.SourcePath, outputPath, shellTemplate, config.Site.Name!,
                 widgetScriptsHtml, widgetStylesHtml, transformSource, logoImgHtml, faviconHtml);
-            if (result.Outcome == PageWriteOutcome.Written) written++;
+            var wasWritten = result.Outcome == PageWriteOutcome.Written;
+            if (wasWritten) written++;
             else unchanged++;
+            progress.PageFinished(outputDisplayName, wasWritten);
         }
 
         CopyThemeAssets(config, siteRoot, outputRoot);
@@ -256,6 +331,32 @@ public sealed class SiteBuilder
 
             var relative = Path.GetRelativePath(contentRoot, file);
             CopyFile(file, Path.Combine(destRoot, relative));
+        }
+    }
+
+    // A site's escape hatch for files that need to sit at the OUTPUT
+    // ROOT itself -- GitHub Pages' CNAME, .nojekyll, a robots.txt/
+    // favicon.ico override, anything a host looks for by a fixed name at
+    // the site's actual root and won't find nested under content/ or any
+    // other Canary-owned subdirectory. Named for exactly what it does --
+    // its contents get copied straight to the output root, no processing,
+    // no route derived from it. A convention directory, not a config field
+    // -- same "just drop it in, no wiring required" spirit as widgets/
+    // (see Widgets.WidgetDiscovery), and unlike content/, css/, etc.
+    // there's nothing to derive a route or a <link> tag from here, so a
+    // config field would only add a name to remember for zero benefit.
+    // Always scaffolded by `canary init` (see SiteInitializer), but still
+    // optional here too -- a build against an existing project that
+    // predates this, or one where it was deleted, just skips the copy.
+    private static void CopyRootCopyAssets(string siteRoot, string outputRoot)
+    {
+        var rootCopyDir = Path.Combine(siteRoot, "root-copy");
+        if (!Directory.Exists(rootCopyDir)) return;
+
+        foreach (var file in Directory.GetFiles(rootCopyDir, "*", SearchOption.AllDirectories))
+        {
+            var relative = Path.GetRelativePath(rootCopyDir, file);
+            CopyFile(file, Path.Combine(outputRoot, relative));
         }
     }
 

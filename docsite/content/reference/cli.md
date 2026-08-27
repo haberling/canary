@@ -31,3 +31,7 @@ With no `<name>`, lists every widget Canary can currently find for the site at `
 ## `canary tools build [<name>] [--config <path>]`
 
 Precompiles every `tools` registry entry that has a `source` field (or just `<name>`'s, if given) via `dotnet publish`, targeting Native AOT. A registry entry with no `source` — the plain bare-string form — isn't touched; there's nothing to build for it. See [Content Toolchain → Precompiling a C# tool](../guide/toolchain).
+
+## `canary tools validate [<name>] [--config <path>]`
+
+Round-trips a probe of non-ASCII text (math symbols, smart quotes, accented letters, CJK, emoji) through every `tools` registry entry (or just `<name>`'s, if given), via the same stdio pipe a real build uses, and fails (exit code 1) if any tool doesn't hand the probe back unchanged. Catches a tool whose own `Console.In`/`Console.Out` isn't pinned to UTF-8, which otherwise mangles non-ASCII markdown silently — often unnoticed until some page's actual content happens to hit it. See [Content Toolchain → "A tool's stdin/stdout is UTF-8"](../guide/toolchain).

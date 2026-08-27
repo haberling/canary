@@ -111,4 +111,36 @@ public class ToolchainRunnerTests : IDisposable
 
         Assert.Contains("ROUTE=[]", result);
     }
+
+    // Regression test for a real bug: non-ASCII markdown (math symbols like
+    // ∑, subscripts like ₙ, typographic ellipses like …) came out as
+    // mojibake after passing through a tool chain, because neither side of
+    // the stdio pipe was pinned to UTF-8 -- .NET's Process fell back to the
+    // OS console codepage (437/1252 on Windows, never UTF-8) for the
+    // redirected pipe. Uses a "dotnet run" file-based tool -- the exact
+    // shape every real tool in Canary's own guide and consoland's site
+    // both use (Console.In.ReadToEnd() / Console.Out.Write()) -- rather
+    // than a .cmd script, since a native console tool like findstr doesn't
+    // exercise .NET's Process stdio encoding path at all and wouldn't have
+    // caught this. The tool itself sets Console.InputEncoding/
+    // OutputEncoding to UTF-8, matching what the toolchain guide now asks
+    // tool authors to do -- this test is pinning Canary's half of that
+    // contract (see ToolchainRunner.ToolIoEncoding).
+    [Fact]
+    public void Run_NonAsciiMarkdown_SurvivesRoundTripThroughDotnetRunTool()
+    {
+        var toolPath = Path.Combine(_siteRoot, "tools", "echo.cs");
+        File.WriteAllText(toolPath, """
+            using System.Text;
+            Console.InputEncoding = new UTF8Encoding(false);
+            Console.OutputEncoding = new UTF8Encoding(false);
+            Console.Out.Write(Console.In.ReadToEnd());
+            """);
+        var registry = new Dictionary<string, string> { ["echo"] = "dotnet run tools/echo.cs" };
+        const string markdown = "sum: ∑ W = w₁+w₂ + … + wₙ";
+
+        var result = ToolchainRunner.Run(["echo"], registry, NewContext(), markdown);
+
+        Assert.Equal(markdown, result);
+    }
 }

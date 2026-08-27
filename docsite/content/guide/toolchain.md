@@ -42,6 +42,15 @@ A tool can be any executable command — `canary init` scaffolds two working exa
 
 **Always give a local script command an explicit path** (`tools/foo.cmd`, not a bare `foo.cmd`) — a bare filename with no path separator can silently fail to resolve on Windows machines with the `NoDefaultCurrentDirectoryInExePath` security setting enabled. Every tool command Canary itself ships already follows this rule.
 
+**A tool's stdin/stdout is UTF-8** — Canary writes and reads it as UTF-8 on its own end, matching how markdown source and rendered HTML are handled everywhere else in the build. A tool needs to read/write UTF-8 too, or non-ASCII content (math symbols, smart quotes, accented letters) comes out corrupted. A C# tool using `Console.In`/`Console.Out` needs to say so explicitly — `Console.InputEncoding`/`Console.OutputEncoding` otherwise default to the OS console codepage, which on Windows is essentially never UTF-8:
+
+```csharp
+Console.InputEncoding = new System.Text.UTF8Encoding(false);
+Console.OutputEncoding = new System.Text.UTF8Encoding(false);
+```
+
+`tools/curtain.cs` (scaffolded by `canary init`) does this already — copy it rather than starting from a bare `Console.In.ReadToEnd()`.
+
 ## Precompiling a C# tool
 
 A C# tool registered the normal way (`"curtain": "dotnet run tools/curtain.cs"`) pays the full cost of starting the CLR and JIT-compiling the script on *every single page* it runs on, every build. For a tool used across many pages, that adds up. Opt a tool into precompilation by switching its registry entry from a string to an object:

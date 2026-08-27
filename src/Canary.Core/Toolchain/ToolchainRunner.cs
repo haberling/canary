@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Text;
 using Canary.Core.Shell;
 
 namespace Canary.Core.Toolchain;
@@ -29,12 +30,20 @@ public readonly record struct ToolchainContext(string SiteRoot, string RoutePath
 // this codebase) -- no silently-broken output.
 public static class ToolchainRunner
 {
-    public static string Run(IReadOnlyList<string> toolNames, IReadOnlyDictionary<string, string> registry, ToolchainContext context, string markdown)
+    // onToolStarted, when given, fires right before each tool's process
+    // starts -- index into toolNames plus its name, so a caller building a
+    // display chain (see Build.IBuildProgress.RenderStageChanged) doesn't
+    // have to re-derive the index via IndexOf (fragile if the same tool
+    // name ever appears twice in one chain).
+    public static string Run(
+        IReadOnlyList<string> toolNames, IReadOnlyDictionary<string, string> registry, ToolchainContext context, string markdown,
+        Action<int, string>? onToolStarted = null)
     {
         var current = markdown;
-        foreach (var name in toolNames)
+        for (var i = 0; i < toolNames.Count; i++)
         {
-            var command = ResolveCommand(name, registry);
+            onToolStarted?.Invoke(i, toolNames[i]);
+            var command = ResolveCommand(toolNames[i], registry);
             current = Execute(command, context, current);
         }
         return current;
@@ -50,6 +59,22 @@ public static class ToolchainRunner
         return command;
     }
 
+    // Markdown source and rendered HTML are UTF-8 everywhere else in Canary
+    // (PageBuilder reads/writes both with no encoding override, which
+    // defaults to UTF-8) -- tool stdio needs to match that explicitly.
+    // Without it, .NET's Process falls back to the OS console codepage for
+    // redirected pipes (commonly 437/1252 on Windows, never UTF-8), so any
+    // non-ASCII character a tool passes through -- math symbols, smart
+    // quotes, accents -- comes out corrupted, and a chain of multiple tools
+    // compounds the damage on every hop. Found via a real site page (a
+    // math-heavy blog post) whose formulas turned to mojibake after going
+    // through a three-tool chain. A tool built the same way Canary's own
+    // guide instructs (plain top-level-statements C#, reading Console.In,
+    // writing Console.Out) needs to set its own Console.InputEncoding/
+    // OutputEncoding to UTF-8 too -- this only fixes Canary's side of the
+    // pipe, see docsite's toolchain guide.
+    private static readonly UTF8Encoding ToolIoEncoding = new(encoderShouldEmitUTF8Identifier: false);
+
     private static string Execute(string command, ToolchainContext context, string input)
     {
         var (fileName, arguments) = ShellCommand.Resolve(command);
@@ -61,6 +86,9 @@ public static class ToolchainRunner
             RedirectStandardInput = true,
             RedirectStandardOutput = true,
             RedirectStandardError = true,
+            StandardInputEncoding = ToolIoEncoding,
+            StandardOutputEncoding = ToolIoEncoding,
+            StandardErrorEncoding = ToolIoEncoding,
             UseShellExecute = false,
         };
         // Lets a tool do mass, programmatic modification across the site --

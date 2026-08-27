@@ -25,6 +25,13 @@ var routePath = Environment.GetEnvironmentVariable("CANARY_ROUTE_PATH");
 var manifestPath = Environment.GetEnvironmentVariable("CANARY_MANIFEST_PATH");
 Console.Error.WriteLine($"[curtain] CANARY_ROUTE_PATH={routePath} CANARY_MANIFEST_PATH={manifestPath}");
 
+// Canary's own end of this pipe is UTF-8 (matching how markdown/HTML are
+// handled everywhere else in the build) -- Console.In/Out otherwise default
+// to the OS console codepage, which on Windows corrupts any non-ASCII
+// character (math symbols, smart quotes, accents) passing through.
+Console.InputEncoding = new System.Text.UTF8Encoding(false);
+Console.OutputEncoding = new System.Text.UTF8Encoding(false);
+
 string? line;
 while ((line = Console.In.ReadLine()) is not null)
 {

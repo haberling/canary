@@ -20,6 +20,32 @@ partial class Program
 {
     static int Main(string[] args)
     {
+        // Without this, Console.Out/Error default to the OS console
+        // codepage (see ToolchainRunner.ToolIoEncoding's doc comment for
+        // the same issue on tool stdio) -- normally invisible since almost
+        // everything this CLI prints is plain ASCII, but `tools validate`
+        // prints a failing tool's actual (possibly mangled) output back to
+        // the user, and a codepage mismatch on the way out can silently
+        // re-mangle already-mangled text into something that LOOKS fine by
+        // coincidence, hiding the exact bug that command exists to catch.
+        // Found via that command's own diagnostic output looking correct
+        // in the terminal while the underlying string was provably
+        // corrupted (confirmed by writing it to a file instead).
+        //
+        // Deliberately Console.SetOut/SetError, NOT "Console.OutputEncoding
+        // = ...": that property setter also calls SetConsoleOutputCP on
+        // Windows, which repaints the *whole console session's* codepage --
+        // including whatever a subsequently-spawned tool process inherits.
+        // That would make `tools validate`'s pass/fail depend on whether
+        // Canary itself happened to already be attached to a console (and
+        // make a real bug intermittently invisible there while still
+        // corrupting an actual `canary build` run under, say, a headless CI
+        // task with no console at all). Wrapping the raw stdout/stderr
+        // handles directly changes only how THIS process encodes its own
+        // text, with nothing to inherit.
+        Console.SetOut(new StreamWriter(Console.OpenStandardOutput(), new System.Text.UTF8Encoding(false)) { AutoFlush = true });
+        Console.SetError(new StreamWriter(Console.OpenStandardError(), new System.Text.UTF8Encoding(false)) { AutoFlush = true });
+
         // Shared by every subcommand that operates on a site (build, serve,
         // publish, widgets, tools build) -- added to each of those directly
         // rather than Recursive on the root, so it doesn't also show up on
@@ -83,7 +109,14 @@ partial class Program
         toolsBuildCommand.SetAction(parseResult => RunToolsBuild(
             parseResult.GetValue(configOption)!,
             parseResult.GetValue(toolNameArg)));
-        var toolsCommand = new Command("tools", "Tool registry management") { toolsBuildCommand };
+
+        var toolsValidateNameArg = new Argument<string?>("name") { Arity = ArgumentArity.ZeroOrOne, Description = "Validate only this tool; omit to validate every registered tool" };
+        var toolsValidateCommand = new Command("validate", "Round-trip a non-ASCII probe through every registered tool's stdio and flag any that corrupt it") { configOption, toolsValidateNameArg };
+        toolsValidateCommand.SetAction(parseResult => RunToolsValidate(
+            parseResult.GetValue(configOption)!,
+            parseResult.GetValue(toolsValidateNameArg)));
+
+        var toolsCommand = new Command("tools", "Tool registry management") { toolsBuildCommand, toolsValidateCommand };
         rootCommand.Subcommands.Add(toolsCommand);
 
         // No action of its own -- bare `canary explore` falls through to
@@ -715,6 +748,80 @@ partial class Program
         return failed ? 1 : 0;
     }
 
+    // Round-trips ToolchainValidator.ProbePayload through each registered
+    // tool via the exact ToolchainRunner pipe a real build uses -- see
+    // ToolchainValidator's own doc comment for what this catches and why
+    // it's a best-effort smoke test rather than a guarantee. RoutePath is
+    // deliberately a route that can't collide with anything in the site's
+    // real content tree, so a tool's own route-based branching (e.g. "am I
+    // rendering this section's index page?") takes its default path rather
+    // than a special one meant for a real page.
+    static int RunToolsValidate(string configPath, string? name)
+    {
+        CanaryConfig config;
+        try
+        {
+            config = ConfigLoader.Load(configPath);
+        }
+        catch (CanaryConfigException ex)
+        {
+            Console.Error.WriteLine(ex.Message);
+            return 1;
+        }
+
+        var siteRoot = Path.GetDirectoryName(Path.GetFullPath(configPath))!;
+        var toolCommands = config.Tools.ToDictionary(kv => kv.Key, kv => kv.Value.Command);
+
+        List<KeyValuePair<string, string>> toValidate;
+        if (name != null)
+        {
+            if (!toolCommands.TryGetValue(name, out var command))
+            {
+                Console.Error.WriteLine($"No tool named '{name}' in canary.jsonc's \"tools\" registry.");
+                return 1;
+            }
+            toValidate = [new(name, command)];
+        }
+        else
+        {
+            toValidate = toolCommands.ToList();
+            if (toValidate.Count == 0)
+            {
+                Console.WriteLine("No tools registered in canary.jsonc's \"tools\" registry -- nothing to validate.");
+                return 0;
+            }
+        }
+
+        var context = new ToolchainContext(
+            siteRoot, "__canary-tools-validate__", Path.Combine(siteRoot, config.Output.Dir, "manifest.json"));
+
+        var failed = false;
+        foreach (var (toolName, command) in toValidate)
+        {
+            Console.WriteLine($"Validating '{toolName}' ({command}) ...");
+            var result = ToolchainValidator.ValidateOne(toolName, command, context);
+            if (result.Passed)
+            {
+                Console.WriteLine("  ok -- non-ASCII content (math symbols, smart quotes, CJK, emoji) survived unchanged.");
+            }
+            else
+            {
+                Console.Error.WriteLine($"  FAILED -- {result.Detail}");
+                failed = true;
+            }
+        }
+
+        if (failed)
+        {
+            Console.Error.WriteLine();
+            Console.Error.WriteLine(
+                "A failing tool likely isn't reading/writing stdio as UTF-8 -- see the toolchain guide's " +
+                "\"A tool's stdin/stdout is UTF-8\" section for the fix.");
+        }
+
+        return failed ? 1 : 0;
+    }
+
     // Builds the same curated nav tree ManifestBuilder produces during a
     // real build (SiteManifest.Nav) directly from content on disk, rather
     // than reading a possibly-stale manifest.json -- so `canary explore
@@ -771,20 +878,36 @@ partial class Program
 
     static bool RunOneBuild(CanaryConfig config, string siteRoot, string? runtimeDistDir, string label, IReadOnlySet<string>? changedPaths = null)
     {
+        using var progress = new BuildProgressRenderer();
+        var sw = Stopwatch.StartNew();
         try
         {
-            var summary = new SiteBuilder().Build(config, siteRoot, runtimeDistDir, changedPaths);
-            Console.WriteLine($"{label} {summary.TotalRoutes} route(s) -> {summary.OutputRoot}");
+            var summary = new SiteBuilder().Build(config, siteRoot, runtimeDistDir, changedPaths, progress);
+            sw.Stop();
+            // Clear the live status line before printing the final report
+            // below it -- otherwise the report would print mid-line, right
+            // after whatever the spinner last drew.
+            progress.Dispose();
+
+            Console.WriteLine($"{label} {summary.TotalRoutes} route(s) -> {summary.OutputRoot} in {FormatElapsed(sw.Elapsed)}");
+            foreach (var (phase, elapsed) in progress.PhaseTimings)
+            {
+                Console.WriteLine($"  {phase,-22} {FormatElapsed(elapsed)}");
+            }
             Console.WriteLine($"  written   = {summary.PagesWritten}");
             Console.WriteLine($"  unchanged = {summary.PagesUnchanged}");
             return true;
         }
         catch (Exception ex) when (ex is InvalidOperationException or NotSupportedException)
         {
+            progress.Dispose();
             Console.Error.WriteLine($"{label} failed: {ex.Message}");
             return false;
         }
     }
+
+    static string FormatElapsed(TimeSpan elapsed) =>
+        elapsed.TotalMilliseconds < 1000 ? $"{elapsed.TotalMilliseconds:F0}ms" : $"{elapsed.TotalSeconds:F2}s";
 
     // Two ways this data (runtime/dist, templates/default, docs) can be
     // found, tried in order:

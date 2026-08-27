@@ -93,6 +93,25 @@ public class SiteInitializerTests : IDisposable
                 Assert.True(File.Exists(Path.Combine(_targetDir, "widgets", $"{name}.{ext}")));
             }
         }
+
+        Assert.True(Directory.Exists(Path.Combine(_targetDir, "root-copy")));
+    }
+
+    // A re-scaffold (--force) against a project where root-copy/ already
+    // has real content in it (a CNAME, say) must never touch that content
+    // -- Directory.CreateDirectory is a no-op on an existing directory, so
+    // there's no code path here that could clear or overwrite it, but
+    // that's exactly the kind of thing worth locking in with a test rather
+    // than trusting by inspection.
+    [Fact]
+    public void Initialize_Force_DoesNotTouchExistingRootCopyContents()
+    {
+        SiteInitializer.Initialize(DefaultOptions(), _targetDir, _templatesDir, _runtimeDistDir, force: false);
+        File.WriteAllText(Path.Combine(_targetDir, "root-copy", "CNAME"), "example.com");
+
+        SiteInitializer.Initialize(DefaultOptions(), _targetDir, _templatesDir, _runtimeDistDir, force: true);
+
+        Assert.Equal("example.com", File.ReadAllText(Path.Combine(_targetDir, "root-copy", "CNAME")));
     }
 
     // The scaffolded canary.jsonc also shows, commented out, the

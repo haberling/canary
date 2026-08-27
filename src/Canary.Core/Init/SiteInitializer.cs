@@ -62,6 +62,15 @@ public static class SiteInitializer
         WriteStarterContent(options, targetDir, result);
         WriteGitignore(targetDir, options, result);
 
+        // Starts empty -- see SiteBuilder.CopyRootCopyAssets's own doc
+        // comment for what this directory is for (files that need to land
+        // at output.dir's own root: GitHub Pages' CNAME, .nojekyll, a
+        // robots.txt/favicon.ico override). Just needs to exist, not
+        // contain anything -- Directory.CreateDirectory is already a no-op
+        // if it's there (a re-scaffold via --force, say), so there's no
+        // "already exists" branch to write here.
+        Directory.CreateDirectory(Path.Combine(targetDir, "root-copy"));
+
         if (options.CopyDefaultsOnInit)
         {
             CopyBuiltInWidgets(runtimeDistDir, targetDir, result);
