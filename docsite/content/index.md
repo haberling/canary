@@ -1,6 +1,6 @@
 # Canary
 
-A hand-rolled, no-framework static site engine: a small TypeScript client runtime (real paths via the History API, nav population, content widgets) paired with a C# CLI that prerenders every route to real static HTML — crawlable by default, sitemap-friendly, GitHub Pages-friendly.
+Markdown in, website out. Pre-rendered HTML on cold load, with a small TypeScript runtime for in-site navigation. The C# CLI generates static HTML that's crawlable and social-link preview-friendly. Widgets add site features with fenced YAML. A toolchain can modify markdown before rendering, keeping source files clean.
 
 A "Canary site" is a directory holding a `canary.jsonc` config plus markdown content and theme assets. `canary build`/`canary serve` work on that directory the same way for any site that adopts it — including this one: this documentation is itself a Canary site, built by the same `canary build` command a real project uses, from source you can read in `docsite/` in the repo.
 
@@ -13,4 +13,4 @@ A "Canary site" is a directory holding a `canary.jsonc` config plus markdown con
 
 ## Status
 
-Pre-alpha. Canary is run from source today — build and run `dotnet run --project src/Canary` from a checkout. There's no published package yet (winget is the intended eventual distribution channel); see [Reference → CLI](reference/cli) for the commands as they exist right now.
+Alpha. A Windows MSI for v0.2.0 is in [Releases](https://github.com/haberling/canary/releases) — no .NET SDK. The two named dogfood sites are [consoland.net](https://consoland.net) and [canary.consoland.net](https://canary.consoland.net) (this documentation). See [Getting Started](getting-started) to install and scaffold, or [CLI](reference/cli) for every command.

@@ -29,11 +29,19 @@
 <h2>I edited canary.jsonc while <code>canary serve</code> was running and nothing changed</h2>
 <p>Expected — <code>canary serve</code> treats the config as fixed for the lifetime of the session and doesn't re-read it on every rebuild. Restart the server after editing <code>canary.jsonc</code>.</p>
 <h2>My widget's <code>url</code>/<code>src</code> value is broken on any page except the home page</h2>
-<p>You need the explicit <code>!url</code> YAML tag on that value (<code>url: !url "content/games/manual.pdf"</code>) — see <a href="/../guide/widgets">Guide → Widgets</a>. A plain value with no tag is used exactly as written, which only works if it's already an absolute <code>https://</code> URL.</p>
+<p>You need the explicit <code>!url</code> YAML tag on that value (<code>url: !url "content/games/manual.pdf"</code>) — see <a href="/guide/widgets">Guide → Widgets</a>. A plain value with no tag is used exactly as written, which only works if it's already an absolute <code>https://</code> URL.</p>
 <h2>Can I use markdown tables?</h2>
-<p>Not yet — Canary's markdown renderer is a small hand-rolled implementation (see <a href="/../guide/why-canary">Why Canary</a>) covering headings, paragraphs, bold/italic, inline code, links/images, fenced code blocks, single-level unordered/ordered lists, blockquotes, and horizontal rules. No tables, and list items are single-line only (no nested lists, no multi-paragraph list items). Work around a table with a bulleted list instead.</p>
+<p>Not yet — Canary's markdown renderer is a small hand-rolled implementation (see <a href="/guide/why-canary">Why Canary</a>) covering headings, paragraphs, bold/italic, inline code, links/images, fenced code blocks, single-level unordered/ordered lists, blockquotes, and horizontal rules. No tables, and list items are single-line only (no nested lists, no multi-paragraph list items). Work around a table with a bulleted list instead.</p>
 <h2>How do I show a <code>downloads</code>/<code>slideshow</code> fence block as a literal example in my own content?</h2>
-<p>A widget is invoked by its name as the fence's info string, and there's no escape syntax for "show this fence as text instead of running it" — writing a literal `<code> </code>`<code>downloads </code><code> fence always runs the downloads widget. Use the built-in </code>code<code> widget instead: it renders its </code>lines` back out as an escaped, verbatim block, so wrapping the example one line at a time inside it displays as text rather than executing. See <a href="/../guide/widgets">Guide → Widgets</a> for the exact shape — this documentation's own Widgets page uses it for exactly this.</p></main>
+<p>A widget is invoked by its name as the fence's info string, and there's no escape syntax for "show this fence as text instead of running it" — writing a literal `<code> </code>`<code>downloads </code><code> fence always runs the downloads widget. Use the built-in </code>code<code> widget instead: it renders its </code>lines` back out as an escaped, verbatim block, so wrapping the example one line at a time inside it displays as text rather than executing. See <a href="/guide/widgets">Guide → Widgets</a> for the exact shape — this documentation's own Widgets page uses it for exactly this.</p>
+<h2>I deleted a page and the old URL still works</h2>
+<p>Expected — <code>canary build</code> is purely additive. Pass <code>canary build --clean</code> to wipe <code>output.dir</code> after confirmation and rebuild from scratch. See <a href="/guide/incremental-builds">Incremental Builds</a>.</p>
+<h2>I set <code>preferBuiltIn: true</code> and nothing changed</h2>
+<p>Not wired up yet. The field is written by <code>canary init</code> and stored in config, but local <code>widgets/</code> copies always win on a name collision. See <a href="/guide/widgets">Widgets</a>.</p>
+<h2>Do I need the .NET SDK?</h2>
+<p>Windows MSI: no. <code>canary</code> from the installer is self-contained. From source (<code>dotnet run --project src/Canary -- …</code>): yes, the .NET 10 SDK. See <a href="/getting-started">Getting Started</a>.</p>
+<h2><code>canary widget slideshow</code> says the command doesn't exist</h2>
+<p>The singular <code>widget</code> command is gone. It's <code>canary widgets slideshow</code> (list with no name, print one widget's usage example with a name).</p></main>
 
   <footer class="site-footer">
     <span>Built with Canary.</span>

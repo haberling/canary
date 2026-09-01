@@ -24,7 +24,7 @@
   </header>
 
   <main id="app"><h1>canary.jsonc</h1>
-<p>Lives at a site's root. JSON, one config per environment — no dev/prod split, nav and routes are always derived from <code>content.root</code> plus the generated manifest, never redeclared here.</p>
+<p>Lives at a site's root. JSONC — <code>//</code> comments and trailing commas are allowed; unquoted keys and single-quoted strings are not. One config per environment — no dev/prod split, nav and routes are always derived from <code>content.root</code> plus the generated manifest, never redeclared here. <code>canary init</code> scaffolds a commented <code>canary tools build</code> example into the file.</p>
 <pre><code>{
   "site": { "name": "...", "baseUrl": "https://..." },
   "content": { "root": "content" },
@@ -32,32 +32,41 @@
   "renderMode": "hybrid",
   "nav": { "depth": 1 },
   "serve": { "port": 6913 },
-  "theme": { "shell": "shell.html", "base": "css/framework.css", "theme": "css/theme.css" },
+  "theme": {
+    "shell": "shell.html",
+    "base": "css/framework.css",
+    "theme": "css/theme.css",
+    "logo": "img/logo.svg",
+    "favicon": "img/logo.svg"
+  },
   "widgets": { "copyDefaultsOnInit": true, "preferBuiltIn": false },
   "tools": { "breadcrumb": "tools/breadcrumb.sh" },
   "publish": "git add docs &amp;&amp; git commit -m Publish &amp;&amp; git push"
 }</code></pre>
 <h2><code>site</code></h2>
-<ul><li><code>name</code> — required. Your site's display name, used in the page chrome and <code>&lt;title&gt;</code>.</li><li><code>baseUrl</code> — required. Your site's real public URL, used for sitemap generation.</li></ul>
+<ul><li><code>name</code> — required. Your site's display name, used in the page chrome and <code>&lt;title&gt;</code>.</li><li><code>baseUrl</code> — required. Your site's real public URL, used for sitemap and robots generation. Local <code>canary serve</code> / <code>canary docs</code> never read it for page, nav, CSS, or JS URLs.</li></ul>
 <h2><code>content</code></h2>
 <ul><li><code>root</code> — required. The directory (relative to <code>canary.jsonc</code>) holding your markdown content.</li></ul>
 <h2><code>output</code></h2>
 <ul><li><code>dir</code> — defaults to <code>docs</code>, matching GitHub Pages' "serve from <code>/docs</code> on <code>main</code>" convention. Everything <code>canary build</code> produces goes here.</li></ul>
+<p>Files that must land at the output root under a fixed name (GitHub Pages' <code>CNAME</code>, <code>.nojekyll</code>, a <code>robots.txt</code>/<code>favicon.ico</code> override) go in <code>root-copy/</code> next to <code>canary.jsonc</code>, not here. See <a href="/getting-started/project-layout">Project Layout</a>.</p>
 <h2><code>renderMode</code></h2>
-<p><code>hybrid</code> or <code>static</code>. See <a href="/../guide/render-modes">Guide → Render Modes</a>. Defaults to <code>hybrid</code>.</p>
+<p><code>hybrid</code> or <code>static</code>. See <a href="/guide/render-modes">Guide → Render Modes</a>. Defaults to <code>hybrid</code>.</p>
 <h2><code>nav</code></h2>
 <ul><li><code>depth</code> — how many directory levels deep the generated nav menu recurses. Defaults to <code>1</code>. A page deeper than this limit still exists and gets a real URL either way — this only controls how deep the nav <em>menu</em> itself goes, not what's reachable. <code>0</code> or negative means unlimited depth.</li></ul>
+<p>Per-directory hide/allow/deny, sort order, and <code>nonav</code> live in that directory's <code>.nav.json</code>, not here. Depth and <code>.nav.json</code> together are the nav story. See <a href="/guide/nav">Nav and <code>.nav.json</code></a>.</p>
 <h2><code>serve</code></h2>
 <ul><li><code>port</code> — the port <code>canary serve</code> binds to when <code>--port</code> isn't passed on the command line. Defaults to <code>6913</code>. <code>canary init</code> generates a fresh random port per project instead of always writing this fixed default, so two sibling projects don't collide when both are served at once.</li></ul>
 <h2><code>theme</code></h2>
-<ul><li><code>shell</code> — path to the shell HTML template (page chrome).</li><li><code>base</code> — path to the base framework stylesheet.</li><li><code>theme</code> — path to your own theme stylesheet, loaded after <code>base</code>.</li></ul>
+<ul><li><code>shell</code> — path to the shell HTML template (page chrome).</li><li><code>base</code> — path to the base framework stylesheet.</li><li><code>theme</code> — path to your own theme stylesheet, loaded after <code>base</code>.</li><li><code>logo</code> — optional path, relative to the site root, to an image used in the header. Unset (including a fresh <code>canary init</code>) means no logo, not Canary's branding.</li><li><code>favicon</code> — optional path, relative to the site root, to the favicon. Unset means no favicon.</li></ul>
+<p>This documentation site sets both to <code>img/logo.svg</code>.</p>
 <h2><code>widgets</code></h2>
-<ul><li><code>copyDefaultsOnInit</code> — defaults to <code>true</code>. Whether <code>canary init</code> copies the built-in widgets into your project's own <code>widgets/</code> folder as an editable starting point.</li><li><code>preferBuiltIn</code> — defaults to <code>false</code>. When <code>true</code>, always use Canary's built-in <code>downloads</code>/<code>slideshow</code> even if your project has its own local copies, without deleting them.</li></ul>
-<p>See <a href="/../guide/widgets">Guide → Widgets</a>.</p>
+<ul><li><code>copyDefaultsOnInit</code> — defaults to <code>true</code>. Whether <code>canary init</code> copies the built-in widgets into your project's own <code>widgets/</code> folder as an editable starting point.</li><li><code>preferBuiltIn</code> — written by <code>canary init</code> and stored in config, but not applied yet. Local <code>widgets/</code> copies always win on a name collision regardless of this value.</li></ul>
+<p>See <a href="/guide/widgets">Guide → Widgets</a>.</p>
 <h2><code>tools</code></h2>
-<p>A name-to-command map, the central registry a <code>.toolchain.json</code> in any content directory can reference by name. A value is either a bare shell command string (<code>"breadcrumb": "tools/breadcrumb.sh"</code>), or an object opting a C# tool into precompilation: <code>"curtain": { "command": "tools/bin/curtain.exe", "source": "tools/curtain.cs" }</code>. See <a href="/../guide/toolchain">Guide → Content Toolchain</a> for the full picture, including <code>canary tools build</code>.</p>
+<p>A name-to-command map, the central registry a <code>.toolchain.json</code> in any content directory can reference by name. A value is either a bare shell command string (<code>"breadcrumb": "tools/breadcrumb.sh"</code>), or an object opting a C# tool into precompilation: <code>"curtain": { "command": "tools/bin/curtain.exe", "source": "tools/curtain.cs" }</code>. See <a href="/guide/toolchain">Guide → Content Toolchain</a> for the full picture, including <code>canary tools build</code>.</p>
 <h2><code>publish</code></h2>
-<p>Optional. A single arbitrary shell command, run by <code>canary publish</code> after a fresh build. Not set by default. See <a href="/../guide/publishing">Guide → Publishing</a>.</p>
+<p>Optional. A single arbitrary shell command, run by <code>canary publish</code> after a fresh build. Not set by default. See <a href="/guide/publishing">Guide → Publishing</a>.</p>
 <h2><code>initialized</code></h2>
 <p>Written by <code>canary init</code> on a successful scaffold; not something you should hand-write or hand-edit. Lets a later <code>init</code> run against the same directory detect it's already a Canary project and refuse without <code>--force</code>.</p></main>
 

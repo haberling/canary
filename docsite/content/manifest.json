@@ -31,6 +31,11 @@
           "children": null
         },
         {
+          "title": "Nav and \u0060.nav.json\u0060",
+          "path": "guide/nav",
+          "children": null
+        },
+        {
           "title": "Publishing",
           "path": "guide/publishing",
           "children": null

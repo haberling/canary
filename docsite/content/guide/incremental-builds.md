@@ -15,3 +15,7 @@ Site-wide bookkeeping (the manifest, `.toolchain.json` auto-creation, sitemap/ro
 ## Reading the build summary
 
 `canary build`/`canary serve` report how many pages were written versus left unchanged. "Written" means the file on disk actually changed; "unchanged" means it was computed fresh but happened to come out identical to what was already there — a distinction that, by construction, can never disagree with what `git status` would show you.
+
+## Stale output stays until `--clean`
+
+A plain `canary build` is purely additive. If you delete or rename a source page, its old HTML stays in `output.dir` — the build will not prune it. `canary build --clean` wipes `output.dir` after a confirmation prompt and rebuilds from scratch. See [CLI](reference/cli) for the prompt (default No), the cancel-on-No behavior, and the non-interactive refusal. `--clean` is build-only; it is not on `serve` or `publish`.

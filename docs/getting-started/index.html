@@ -24,11 +24,10 @@
   </header>
 
   <main id="app"><h1>Getting Started</h1>
-<p>Canary is pre-alpha and run from source — there's no published package yet (see <a href="/../guide/why-canary">Why Canary</a> and the repo's <code>PLAN.md</code> for the eventual winget-based plan). You'll need a checkout of the <a href="https://github.com/haberling/canary">Canary repo</a> and the .NET 10 SDK.</p>
+<p>Alpha. Windows users can install the <a href="https://github.com/haberling/canary/releases/download/v0.2.0/CanaryInstaller.msi">v0.2.0 MSI</a> and run <code>canary</code> from a new terminal — no .NET SDK. Linux, macOS, and Windows without the MSI build from source (the .NET 10 SDK). Winget is the long-term channel, not what's installable today.</p>
 <h2>1. Scaffold a project</h2>
-<p>From a checkout, run <code>canary init</code> against an empty (or new) directory:</p>
-<pre><code>dotnet run --project src/Canary -- init my-site</code></pre>
-<p>With no <code>--config</code> flag, <code>init</code> prompts you interactively, one field at a time, showing each default in brackets — press Enter to accept it:</p>
+<pre><code>canary init my-site</code></pre>
+<p>With no <code>--from</code> flag, <code>init</code> prompts you interactively, one field at a time, showing each default in brackets — press Enter to accept it:</p>
 <pre><code>Site name:
 Base URL:
 Render mode (hybrid/static) [hybrid]:
@@ -39,16 +38,25 @@ Serve port [6742]:
 Copy default widgets into widgets/ on init? [Y/n]:
 Prefer Canary's built-in widgets over local copies? [y/N]:</code></pre>
 <p>Site name and Base URL are the only two required fields — everything else has a sensible default. The serve port default is randomly generated per run (in <code>[6500, 7000)</code>) specifically so two projects scaffolded close together don't collide the moment both are served at once.</p>
-<p><code>init</code> refuses to touch a directory that already has a <code>canary.jsonc</code> in it, unless you pass <code>--force</code>. See <a href="/project-layout">Project Layout</a> for exactly what gets written.</p>
+<p><code>--from &lt;path&gt;</code> pulls core values (site name, base URL, render mode, content root, output dir, nav depth, widgets flags) from an existing <code>canary.jsonc</code> instead of prompting. Theme paths, the tools registry, and the serve port are always the fresh scaffold's own.</p>
+<p><code>init</code> refuses to touch a directory that already has a <code>canary.jsonc</code> in it, unless you pass <code>--force</code>. See <a href="/getting-started/project-layout">Project Layout</a> for exactly what gets written.</p>
 <h2>2. Serve it locally</h2>
-<pre><code>dotnet run --project src/Canary -- serve --config my-site/canary.jsonc</code></pre>
+<pre><code>canary serve --config my-site/canary.jsonc</code></pre>
 <p>This builds once, starts a local dev server (<code>http://localhost:&lt;port&gt;/</code>, the port from step 1 or <code>canary.jsonc</code>'s <code>serve.port</code>, overridable with <code>--port</code>), and watches for changes. Editing a page's own markdown triggers a fast, targeted rebuild of just that page; anything else (a new/deleted page, a widget, a theme file) falls back to a full rebuild.</p>
 <h2>3. Make an edit</h2>
 <p>Open <code>my-site/content/index.md</code> in an editor and change something — the running <code>serve</code> picks it up automatically. Add more <code>.md</code> files alongside it for more pages; a new top-level directory under <code>content/</code> becomes a nav dropdown automatically.</p>
 <h2>4. Build for real, and publish</h2>
-<pre><code>dotnet run --project src/Canary -- build --config my-site/canary.jsonc</code></pre>
-<p>writes the finished static site to <code>output.dir</code> (<code>docs/</code> by default — GitHub Pages' "serve from <code>/docs</code> on <code>main</code>" convention). For a git-served host, committing and pushing that folder <em>is</em> the deploy step. If you'd rather Canary run that step for you, see <a href="/../guide/publishing">Publishing</a>.</p>
-<p><strong>Next:</strong> <a href="/project-layout">Project Layout</a> for what <code>init</code> scaffolds, or <a href="/../reference/config">Reference → canary.jsonc</a> for every config field.</p></main>
+<pre><code>canary build --config my-site/canary.jsonc</code></pre>
+<p>writes the finished static site to <code>output.dir</code> (<code>docs/</code> by default — GitHub Pages' "serve from <code>/docs</code> on <code>main</code>" convention). For a git-served host, committing and pushing that folder <em>is</em> the deploy step. If you'd rather Canary run that step for you, see <a href="/guide/publishing">Publishing</a>.</p>
+<p>Deleted or renamed pages stay in <code>output.dir</code> until you pass <code>canary build --clean</code>. See <a href="/guide/incremental-builds">Incremental Builds</a>.</p>
+<h2>From source (Linux, macOS, or Windows without the MSI)</h2>
+<p>This needs the .NET 10 SDK and a checkout of the <a href="https://github.com/haberling/canary">Canary repo</a>:</p>
+<pre><code>git clone https://github.com/haberling/canary
+cd canary
+dotnet run --project src/Canary -- init my-site
+dotnet run --project src/Canary -- serve --config my-site/canary.jsonc</code></pre>
+<p>Every command on this page is the same with <code>dotnet run --project src/Canary --</code> in front of <code>canary</code>.</p>
+<p><strong>Next:</strong> <a href="/getting-started/project-layout">Project Layout</a> for what <code>init</code> scaffolds, or <a href="/reference/config">Reference → canary.jsonc</a> for every config field.</p></main>
 
   <footer class="site-footer">
     <span>Built with Canary.</span>

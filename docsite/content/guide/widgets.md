@@ -60,4 +60,8 @@ Drop a `name.html` file into your project's `widgets/` folder — a plain Mustac
 
 ## `copyDefaultsOnInit` / `preferBuiltIn`
 
-`canary init` copies the built-in widgets into your project's own `widgets/` folder by default (`copyDefaultsOnInit: true`) — an "eject"-style starting point you can edit freely, rather than leaving them invisible inside Canary's own install. Since local copies win on a name collision, editing them takes effect immediately. If you'd rather always track Canary's current built-in versions instead of your local edits, set `preferBuiltIn: true` — a single site-wide switch, not per-widget.
+`canary init` copies every built-in widget (`downloads`, `slideshow`, `code`) into your project's own `widgets/` folder by default (`copyDefaultsOnInit: true`) — an "eject"-style starting point you can edit freely, rather than leaving them invisible inside Canary's own install. Local copies always win on a name collision, so editing them takes effect immediately.
+
+`preferBuiltIn` is written by `init` and stored in config, but not applied yet — nothing flips precedence. Local `widgets/` copies always win on a name collision regardless of this value.
+
+Put a `<!--clipboard ... -->` block in a widget's `.html` if you want `canary widgets <name>` to print a ready-to-paste usage example. HTML comments are stripped before Mustache runs, so that block (and any `{{…}}` inside a comment) does not leak into output. `canary widgets <name>` still reads the un-stripped file off disk.

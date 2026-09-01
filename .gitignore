@@ -26,6 +26,9 @@ workspace/content/manifest.json
 # a real site (unlike workspace/ above)
 initTestWorkspace/
 
+# Local-only notes (dev journal, etc.) -- not part of the public repo
+local-docs/
+
 # Editor / OS
 .vs/
 .vscode/

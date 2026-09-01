@@ -1,5 +1,5 @@
 {
-  "site": { "name": "Canary", "baseUrl": "https://example.com" },
+  "site": { "name": "Canary", "baseUrl": "https://canary.consoland.net" },
   "content": { "root": "content" },
   "output": { "dir": "../docs" },
   "renderMode": "hybrid",

@@ -2,7 +2,7 @@
 
 The problem this solves: functionality that should apply to *many* pages — a breadcrumb at the top, a "reading time" estimate, a "return to blog" link — without copy-pasting a widget block into every markdown file, and without mixing site behavior into content data. A **tool** is an external command that receives a page's raw markdown on stdin and returns transformed markdown on stdout, run once per page at build time, before that markdown reaches the renderer.
 
-Tools only ever run at build time, never in the browser — a tool is an arbitrary external command, and there's no browser equivalent for that. Every page is always fully re-rendered on every build anyway (see [Incremental Builds](incremental-builds)), so there's no separate "did the tool's output change" cache to keep in sync.
+Tools only ever run at build time, never in the browser — a tool is an arbitrary external command, and there's no browser equivalent for that. Every page is always fully re-rendered on every build anyway (see [Incremental Builds](guide/incremental-builds)), so there's no separate "did the tool's output change" cache to keep in sync.
 
 ## Two separate pieces
 
@@ -50,6 +50,8 @@ Console.OutputEncoding = new System.Text.UTF8Encoding(false);
 ```
 
 `tools/curtain.cs` (scaffolded by `canary init`) does this already — copy it rather than starting from a bare `Console.In.ReadToEnd()`.
+
+`canary tools validate` (or `validate <name>`) round-trips a non-ASCII probe through the same stdio pipe a build uses, and exits 1 if a tool mangles it. Run it after writing a new tool, before a page's actual content happens to hit the bug. See [CLI](reference/cli).
 
 ## Precompiling a C# tool
 

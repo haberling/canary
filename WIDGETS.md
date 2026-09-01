@@ -1,6 +1,6 @@
 # Authoring a Canary widget
 
-A widget is a reusable piece of markdown-embeddable content — a slideshow, a downloads box, whatever — that a page author invokes with a fenced code block instead of hand-writing HTML. This doc is a how-to for building one. For the design history and *why* it works this way, see `PLAN.md`'s "Widget system" section — this doc only covers the *how*.
+A widget is a reusable piece of markdown-embeddable content — a slideshow, a downloads box, whatever — that a page author invokes with a fenced code block instead of hand-writing HTML. This doc is the in-repo deep how-to for building one. The user-facing version is `docsite/content/guide/widgets.md`.
 
 ## The core idea
 
@@ -36,7 +36,7 @@ That's the whole workflow. The rest of this doc is reference material for steps 
 
 `WidgetDiscovery.Discover` looks in two places, one file extension at a time (`*.html` for templates, `*.js` for behavior scripts, `*.css` for styling):
 
-- **Built-in**: `runtime/widgets/` in the Canary repo itself (source), copied unchanged to `runtime/dist/widgets/` as part of Canary's own build — `downloads` and `slideshow` (each with an `.html`, `.js`, and `.css`) live here today.
+- **Built-in**: `runtime/widgets/` in the Canary repo itself (source), copied unchanged to `runtime/dist/widgets/` as part of Canary's own build — `downloads`, `slideshow`, and `code` live here today (`code` has `.html` + `.css` only; it has no client behavior).
 - **Site-authored**: `<siteRoot>/widgets/` — a `widgets/` folder next to your site's `canary.jsonc`.
 
 **Site-authored wins on a filename collision.** If your site has its own `widgets/downloads.html`, it's used instead of the built-in one, no config flag needed. (The `widgets.preferBuiltIn` config field is meant to flip that precedence back — it's schema-only right now, not wired up to `WidgetDiscovery` yet.)
@@ -102,18 +102,9 @@ url: "https://example.com/file.msi"
 
 **Not supported**: partials (`{{> other}}`), unescaped/triple-mustache output (`{{{var}}}`), lambdas. There is no way to emit raw HTML from a YAML value — everything through `{{var}}` gets escaped. If you need conditional structure, use sections, not string concatenation.
 
-### One gotcha specific to this templater
+### HTML comments are stripped before Mustache runs
 
-**Never write a literal `{{tag}}` in your own template's documentation comments.** The templater has no concept of "this is inside an HTML comment, skip it" — it scans the whole file for `{{`/`}}` and executes whatever it finds, including inside a `<!-- -->` block. This has actually broken things twice in this codebase already (the shell chrome template, and the downloads widget's own doc comment). Describe the syntax in prose instead:
-
-```html
-<!-- BAD: this gets executed for real, will corrupt output
-     An "items" section: {{#items}}...{{/items}}
--->
-
-<!-- GOOD -->
-<!-- An "items" section iterates the items list, same idea as any Mustache section. -->
-```
+`TemplateComments.Strip` removes every `<!-- ... -->` span from a template right after it's read from disk, before any Mustache substitution. A `<!--clipboard -->` block and any `{{…}}` inside a comment therefore do not leak into output, and cannot execute as template tags either. `canary widgets <name>` still reads the un-stripped file off disk (`WidgetClipboardExample.Extract`), so the clipboard example keeps working.
 
 ## The `.js` behavior file (optional, only for interactive widgets)
 
@@ -161,11 +152,12 @@ Don't reach into the site's own `framework.css`/`theme.css` to style your widget
 
 ## Incremental builds do see widget edits
 
-`canary build`'s checksum-gating folds every discovered widget file's content (all three types — `.html`, `.js`, `.css`) into every page's cache key, so editing any widget correctly invalidates the cache for pages that use it, not just the page whose own markdown changed. This didn't used to be true and is worth knowing the shape of if you're ever debugging a stale-output-feeling issue: the check is site-wide (any widget file changing invalidates every page, not just pages that reference that specific widget) rather than tracking per-page usage — a deliberate simplicity tradeoff, same one already made for `{{widgetScripts}}`/`{{widgetStyles}}` being site-wide too.
+`canary build` always re-renders every page; the disk write is what's conditional (byte-identical output is left alone). There is no checksum cache. Editing a widget template, script, or stylesheet takes effect on the next build. Deleted or renamed pages stay in `output.dir` until you pass `canary build --clean`.
 
 ## Full working examples
 
-Both built-in widgets are real, complete reference implementations — read them before writing your first custom one:
+The three built-in widgets are real, complete reference implementations — read them before writing your first custom one:
 
 - `runtime/widgets/downloads.html` + `.js` + `.css` — a list of download links, with a conditional branch for a copy-to-clipboard command row (`{{#copy}}`/`{{^copy}}`), a `!url`-tagged relative path example, and CSS that uses the site's own color tokens.
 - `runtime/widgets/slideshow.html` + `.js` + `.css` — a list-of-slides section, a title with a fallback, the more involved `.js` pattern (delegation + `MutationObserver` for autoplay), and CSS for the viewport/nav/dots layout.
+- `runtime/widgets/code.html` + `.css` — an escaped, verbatim code block used to display other widgets' fence syntax as text. No `.js`.
